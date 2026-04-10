@@ -1,242 +1,271 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Draw World JC-2 — Sala de Rol</title>
+    <!-- CSS del chat -->
+    <link rel="stylesheet" href="style-chat.css" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Draw World JC-2 — Sala de Rol</title>
-  <!-- CSS del chat -->
-  <link rel="stylesheet" href="style-chat.css" />
-</head>
-
-<body class="chat-page">
-  <div class="chat-root" id="chat-root">
-    <!-- SIDEBAR: Lista de jugadores + datos del usuario -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <!-- Avatar del usuario -->
-        <div class="chat-bot-avatar" id="chat-user-avatar">
-          <span>V</span>
-        </div>
-
-        <div class="sidebar-title">
-          <!-- Aquí el JS pondrá el nombre del jugador -->
-          <div class="chat-bot-name" id="chat-user-name">Viajero</div>
-          <!-- Aquí el JS pondrá el ID del jugador -->
-          <div class="chat-bot-subtitle" id="chat-user-tag">
-            ID: DW-0000
-          </div>
-        </div>
-      </div>
-
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <span>Personajes</span>
-          <span class="sidebar-count">
-            <span id="players-count">0</span> Conectado/s
-          </span>
-        </div>
-
-        <ul id="players-list" class="players-list">
-          <!-- Se llena por JS -->
-        </ul>
-      </div>
-
-      <div class="sidebar-footer">
-        <span class="sidebar-hint">
-          Cross Moon · Draw World JC-2
-        </span>
-        <button id="logout-btn" class="chip chip-soft" type="button" style="margin-top:0.5rem;width:100%;cursor:pointer;">
-          🔓 Cerrar sesión
-        </button>
-      </div>
-    </aside>
-
-    <!-- Backdrop para cerrar el menú en móvil tocando fuera -->
-    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
-
-    <!-- MAIN: Chat -->
-    <main class="chat-main">
-      <!-- HEADER SUPERIOR -->
-      <header class="chat-header">
-        <button class="icon-button menu-button" id="menu-toggle" aria-label="Abrir/cerrar lista de jugadores">
-          ☰
-        </button>
-
-        <div class="chat-header-center">
-          <!-- Avatar en el header (solo clase, sin id duplicado) -->
-          <div class="chat-bot-avatar header-avatar">
+  <body class="chat-page">
+    <div class="chat-root" id="chat-root">
+      <!-- SIDEBAR: Lista de jugadores + datos del usuario -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <!-- Avatar del usuario -->
+          <div class="chat-bot-avatar" id="chat-user-avatar">
             <span>V</span>
           </div>
-          <div class="chat-header-text">
-            <div class="chat-bot-name">Cross Moon</div>
+
+          <div class="sidebar-title">
+            <!-- Aquí el JS pondrá el nombre del jugador -->
+            <div class="chat-bot-name" id="chat-user-name">Viajero</div>
+            <!-- Aquí el JS pondrá el ID del jugador -->
+            <div class="chat-bot-subtitle" id="chat-user-tag">ID: DW-0000</div>
           </div>
         </div>
 
-        <div class="chat-header-right">
-          <!-- Selector de estado: En línea / Ausencia -->
-          <div class="status-dropdown">
-            <button class="chip chip-soft status-chip" id="status-toggle" type="button">
-              <span id="status-label">En línea</span>
-            </button>
-            <div class="status-menu" id="status-menu">
-              <button type="button" data-status="online">En línea</button>
-              <button type="button" data-status="away">Ausencia</button>
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <span>Personajes</span>
+            <span class="sidebar-count">
+              <span id="players-count">0</span> Conectado/s
+            </span>
+          </div>
+
+          <ul id="players-list" class="players-list">
+            <!-- Se llena por JS -->
+          </ul>
+        </div>
+
+        <div class="sidebar-footer">
+          <span class="sidebar-hint"> Cross Moon · Draw World JC-2 </span>
+          <button
+            id="logout-btn"
+            class="chip chip-soft"
+            type="button"
+            style="margin-top: 0.5rem; width: 100%; cursor: pointer"
+          >
+            🔓 Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      <!-- Backdrop para cerrar el menú en móvil tocando fuera -->
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+      <!-- MAIN: Chat -->
+      <main class="chat-main">
+        <!-- HEADER SUPERIOR -->
+        <header class="chat-header">
+          <button
+            class="icon-button menu-button"
+            id="menu-toggle"
+            aria-label="Abrir/cerrar lista de jugadores"
+          >
+            ☰
+          </button>
+
+          <div class="chat-header-center">
+            <!-- Avatar en el header (solo clase, sin id duplicado) -->
+            <div class="chat-bot-avatar header-avatar">
+              <span>V</span>
+            </div>
+            <div class="chat-header-text">
+              <div class="chat-bot-name">Cross Moon</div>
+            </div>
+          </div>
+
+          <div class="chat-header-right">
+            <!-- Selector de estado: En línea / Ausencia -->
+            <div class="status-dropdown">
+              <button
+                class="chip chip-soft status-chip"
+                id="status-toggle"
+                type="button"
+              >
+                <span id="status-label">En línea</span>
+              </button>
+              <div class="status-menu" id="status-menu">
+                <button type="button" data-status="online">En línea</button>
+                <button type="button" data-status="away">Ausencia</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- ZONA SCROLLEABLE DEL CHAT -->
+        <section class="chat-scroll-area">
+          <div id="chat-box" class="chat-box"></div>
+
+          <!-- Indicador de "escribiendo" del GM -->
+          <div id="typing-indicator" class="typing-indicator hidden">
+            <div class="typing-bubble">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="typing-label"> GM Cristal está escribiendo... </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ÁREA DE INPUT -->
+        <footer class="chat-input-area">
+          <div class="chat-input-inner">
+            <textarea
+              id="message-input"
+              class="chat-input"
+              rows="1"
+              placeholder="Mensaje"
+            ></textarea>
+
+            <div class="chat-input-actions">
+              <button
+                class="icon-button subtle"
+                id="roll-dice-btn"
+                title="Lanzar dado (decorativo, por ahora)"
+                type="button"
+              >
+                🎲
+              </button>
+              <button class="send-button" id="send-btn" type="button">
+                <span>Enviar</span>
+                <span class="send-icon">▶</span>
+              </button>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <!-- MODAL DE EDICIÓN (sin Bootstrap) -->
+    <div id="edit-modal-overlay" class="edit-modal-overlay">
+      <div class="edit-modal">
+        <div class="edit-modal-header">
+          <h2>Editar mensaje</h2>
+        </div>
+        <div class="edit-modal-body">
+          <div id="edit-single-wrapper">
+            <textarea id="editText" rows="4"></textarea>
+          </div>
+          <div id="edit-dual-wrapper" class="edit-dual-wrapper">
+            <div class="edit-dual-column">
+              <div class="edit-dual-label">
+                GM: <span id="editLabelGM">GM</span>
+              </div>
+              <textarea id="editTextGM" rows="4"></textarea>
+            </div>
+            <div class="edit-dual-column">
+              <div class="edit-dual-label">
+                Sylvie: <span id="editLabelSylvie">Sylvie</span>
+              </div>
+              <textarea id="editTextSylvie" rows="4"></textarea>
             </div>
           </div>
         </div>
-      </header>
-
-      <!-- ZONA SCROLLEABLE DEL CHAT -->
-      <section class="chat-scroll-area">
-        <div id="chat-box" class="chat-box"></div>
-
-        <!-- Indicador de "escribiendo" del GM -->
-        <div id="typing-indicator" class="typing-indicator hidden">
-          <div class="typing-bubble">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="typing-label">
-              GM Cristal está escribiendo...
-            </span>
-          </div>
+        <div class="edit-modal-footer">
+          <button id="cancelEditBtn" class="btn-secondary" type="button">
+            Cancelar
+          </button>
+          <button id="saveEditBtn" class="btn-primary" type="button">
+            Guardar cambios
+          </button>
         </div>
-      </section>
-
-      <!-- ÁREA DE INPUT -->
-      <footer class="chat-input-area">
-        <div class="chat-input-inner">
-          <textarea id="message-input" class="chat-input" rows="1" placeholder="Mensaje"></textarea>
-
-          <div class="chat-input-actions">
-            <button class="icon-button subtle" id="roll-dice-btn" title="Lanzar dado (decorativo, por ahora)"
-              type="button">
-              🎲
-            </button>
-            <button class="send-button" id="send-btn" type="button">
-              <span>Enviar</span>
-              <span class="send-icon">▶</span>
-            </button>
-          </div>
-        </div>
-      </footer>
-    </main>
-  </div>
-
-  <!-- MODAL DE EDICIÓN (sin Bootstrap) -->
-  <div id="edit-modal-overlay" class="edit-modal-overlay">
-    <div class="edit-modal">
-      <div class="edit-modal-header">
-        <h2>Editar mensaje</h2>
-      </div>
-      <div class="edit-modal-body">
-        <div id="edit-single-wrapper">
-          <textarea id="editText" rows="4"></textarea>
-        </div>
-        <div id="edit-dual-wrapper" class="edit-dual-wrapper">
-          <div class="edit-dual-column">
-            <div class="edit-dual-label">GM: <span id="editLabelGM">GM</span></div>
-            <textarea id="editTextGM" rows="4"></textarea>
-          </div>
-          <div class="edit-dual-column">
-            <div class="edit-dual-label">Sylvie: <span id="editLabelSylvie">Sylvie</span></div>
-            <textarea id="editTextSylvie" rows="4"></textarea>
-          </div>
-        </div>
-      </div>
-      <div class="edit-modal-footer">
-        <button id="cancelEditBtn" class="btn-secondary" type="button">
-          Cancelar
-        </button>
-        <button id="saveEditBtn" class="btn-primary" type="button">
-          Guardar cambios
-        </button>
       </div>
     </div>
-  </div>
 
-  <!-- 🔐 MODAL DE CONTRASEÑA PARA PASAPORTES PROTEGIDOS -->
-  <div id="gm-auth-overlay" class="edit-modal-overlay gm-auth-overlay">
-    <div class="edit-modal gm-auth-modal">
-      <div class="edit-modal-header">
-        <h2>Pasaporte protegido</h2>
-      </div>
-      <div class="edit-modal-body">
-        <p id="gm-auth-message">
-          Este pasaporte está protegido. Introduce la contraseña.
-        </p>
-        <input id="gm-auth-password" type="password" placeholder="Contraseña"
-          style="width:100%; margin-top:0.5rem; margin-bottom:0.4rem;" />
-        <div id="gm-auth-error" style="color:#f97373; font-size:0.8rem; min-height:1.1rem;"></div>
-      </div>
-      <div class="edit-modal-footer">
-        <button id="gm-auth-cancel" class="btn-secondary" type="button">
-          Cancelar
-        </button>
-        <button id="gm-auth-submit" class="btn-primary" type="button">
-          Desbloquear
-        </button>
+    <!-- 🔐 MODAL DE CONTRASEÑA PARA PASAPORTES PROTEGIDOS -->
+    <div id="gm-auth-overlay" class="edit-modal-overlay gm-auth-overlay">
+      <div class="edit-modal gm-auth-modal">
+        <div class="edit-modal-header">
+          <h2>Pasaporte protegido</h2>
+        </div>
+        <div class="edit-modal-body">
+          <p id="gm-auth-message">
+            Este pasaporte está protegido. Introduce la contraseña.
+          </p>
+          <input
+            id="gm-auth-password"
+            type="password"
+            placeholder="Contraseña"
+            style="width: 100%; margin-top: 0.5rem; margin-bottom: 0.4rem"
+          />
+          <div
+            id="gm-auth-error"
+            style="color: #f97373; font-size: 0.8rem; min-height: 1.1rem"
+          ></div>
+        </div>
+        <div class="edit-modal-footer">
+          <button id="gm-auth-cancel" class="btn-secondary" type="button">
+            Cancelar
+          </button>
+          <button id="gm-auth-submit" class="btn-primary" type="button">
+            Desbloquear
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Lógica de chat -->
-  <script src="js/chat.js"></script>
+    <script>
+      window.DWJC2_API_BASE = "https://cross-moon.onrender.com";
+    </script>
 
-  <!-- JS pequeñito para el menú móvil y el selector de estado -->
-  <script>
-    const menuBtn = document.getElementById("menu-toggle");
-    const chatRoot = document.getElementById("chat-root");
-    const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+    <!-- Lógica de chat -->
+    <script src="js/chat.js"></script>
 
-    if (menuBtn && chatRoot) {
-      menuBtn.addEventListener("click", () => {
-        chatRoot.classList.toggle("sidebar-open");
-      });
-    }
+    <!-- JS pequeñito para el menú móvil y el selector de estado -->
+    <script>
+      const menuBtn = document.getElementById("menu-toggle");
+      const chatRoot = document.getElementById("chat-root");
+      const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 
-    // Cerrar el sidebar tocando en el fondo oscuro
-    if (sidebarBackdrop && chatRoot) {
-      sidebarBackdrop.addEventListener("click", () => {
-        chatRoot.classList.remove("sidebar-open");
-      });
-    }
+      if (menuBtn && chatRoot) {
+        menuBtn.addEventListener("click", () => {
+          chatRoot.classList.toggle("sidebar-open");
+        });
+      }
 
-    // Selector de estado (En línea / Ausencia)
-    const statusToggle = document.getElementById("status-toggle");
-    const statusMenu = document.getElementById("status-menu");
-    const statusLabel = document.getElementById("status-label");
+      // Cerrar el sidebar tocando en el fondo oscuro
+      if (sidebarBackdrop && chatRoot) {
+        sidebarBackdrop.addEventListener("click", () => {
+          chatRoot.classList.remove("sidebar-open");
+        });
+      }
 
-    if (statusToggle && statusMenu && statusLabel) {
-      // Abrir/cerrar menú
-      statusToggle.addEventListener("click", (e) => {
-        e.stopPropagation();
-        statusMenu.classList.toggle("open");
-      });
+      // Selector de estado (En línea / Ausencia)
+      const statusToggle = document.getElementById("status-toggle");
+      const statusMenu = document.getElementById("status-menu");
+      const statusLabel = document.getElementById("status-label");
 
-      // Elegir opción
-      statusMenu.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-status]");
-        if (!btn) return;
+      if (statusToggle && statusMenu && statusLabel) {
+        // Abrir/cerrar menú
+        statusToggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          statusMenu.classList.toggle("open");
+        });
 
-        const status = btn.dataset.status;
-        if (status === "online") {
-          statusLabel.textContent = "En línea";
-          statusToggle.classList.remove("is-away");
-        } else {
-          statusLabel.textContent = "Ausencia";
-          statusToggle.classList.add("is-away");
-        }
-        statusMenu.classList.remove("open");
-      });
+        // Elegir opción
+        statusMenu.addEventListener("click", (e) => {
+          const btn = e.target.closest("button[data-status]");
+          if (!btn) return;
 
-      // Cerrar el menú si tocas fuera
-      document.addEventListener("click", () => {
-        statusMenu.classList.remove("open");
-      });
-    }
-  </script>
-</body>
+          const status = btn.dataset.status;
+          if (status === "online") {
+            statusLabel.textContent = "En línea";
+            statusToggle.classList.remove("is-away");
+          } else {
+            statusLabel.textContent = "Ausencia";
+            statusToggle.classList.add("is-away");
+          }
+          statusMenu.classList.remove("open");
+        });
 
+        // Cerrar el menú si tocas fuera
+        document.addEventListener("click", () => {
+          statusMenu.classList.remove("open");
+        });
+      }
+    </script>
+  </body>
 </html>
