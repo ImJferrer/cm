@@ -50,6 +50,9 @@ document.addEventListener("DOMContentLoaded", () => {
     clientId: null,
   };
 
+  // Jugadores remotos — debe estar aquí arriba porque handleWsMessage lo usa
+  let remotePlayers = [];
+
   function resolveApiBase() {
     const raw =
       window.DWJC2_API_BASE ||
@@ -198,9 +201,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
   const player = JSON.parse(playerRaw);
-
-  // ── Variables que dependen de player ─────────────────────
-  let remotePlayers = []; // jugadores remotos del WS
 
   connectWebSocket(player.name || "Viajero");
 
