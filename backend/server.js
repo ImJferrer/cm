@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const GM_PASSWORD = process.env.GM_PASSWORD || "Sylv13";
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
 
@@ -110,6 +111,20 @@ wss.on("connection", (ws) => {
       );
       // Enviamos la lista completa actualizada a todos
       broadcastPlayerList();
+      return;
+    }
+
+    // ── reset_chat: el GM borra el chat para todos ─────────
+    if (parsed.type === "reset_chat") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "reset_chat" }, null);
+      return;
+    }
+
+    // ── kick_all: el GM expulsa a todos ────────────────────
+    if (parsed.type === "kick_all") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "kicked" }, ws);
       return;
     }
 
@@ -286,6 +301,38 @@ app.post("/api/chat", async (req, res) => {
       seed: 0,
     };
     const useGoogle = /^gemini[-_]/i.test(targetModel);
+    const useDeepseek = /^deepseek-/i.test(targetModel);
+
+    if (useDeepseek) {
+      if (!DEEPSEEK_API_KEY) {
+        return res.status(500).json({ error: "Falta DEEPSEEK_API_KEY para usar modelos DeepSeek" });
+      }
+
+      const deepseekRes = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          stream: false,
+          messages: finalMessages,
+          temperature: 0.8,
+          max_tokens: 400,
+        }),
+      });
+
+      if (!deepseekRes.ok) {
+        const text = await deepseekRes.text();
+        console.error("Error de DeepSeek:", deepseekRes.status, text);
+        return res.status(500).json({ error: "Fallo al contactar con DeepSeek", detail: text });
+      }
+
+      const data = await deepseekRes.json();
+      const reply = data?.choices?.[0]?.message?.content?.trim() || "Me quede pensando un segundo, continuo...";
+      return res.json({ reply });
+    }
 
     if (useGoogle) {
       if (!GEMINI_API_KEY) {

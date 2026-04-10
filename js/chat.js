@@ -138,6 +138,23 @@ document.addEventListener("DOMContentLoaded", () => {
       renderPlayers();
       return;
     }
+
+    // — GM resetea el chat para todos ─────────────────────
+    if (data.type === "reset_chat") {
+      messages = [];
+      messageIdCounter = 1;
+      localStorage.removeItem(HISTORY_KEY);
+      if (chatBox) chatBox.innerHTML = "";
+      return;
+    }
+
+    // — El GM expulsó a todos ──────────────────────────────
+    if (data.type === "kicked") {
+      localStorage.removeItem("dwjc2_player");
+      localStorage.removeItem("dwjc2_gm_flag");
+      window.location.href = "index.html";
+      return;
+    }
   }
 
   function connectWebSocket(playerName) {
@@ -182,6 +199,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   const player = JSON.parse(playerRaw);
   connectWebSocket(player.name || "Viajero");
+
+  // Botón de cerrar sesión para jugadores normales
+  const logoutBtnEl = document.getElementById("logout-btn");
+  if (logoutBtnEl) {
+    logoutBtnEl.addEventListener("click", () => {
+      const ok = window.confirm("¿Cerrar sesión?");
+      if (!ok) return;
+      logout();
+    });
+  }
 
     // --- detección de GM + nombres especiales ---
   const normalizedName = (player.name || "").toLowerCase().trim();
@@ -350,7 +377,7 @@ document.addEventListener("DOMContentLoaded", () => {
     gmCardPrompt: "",
     gmCardAvatarDataUrl: "",
     gmRole: "random", // rol activo del GM (villano, heroe, random)
-    gmEnabled: false, // ⬅️ GM ACTIVADO por defecto para que la IA responda a todos los jugadores
+    gmEnabled: true, // ⬅️ GM ACTIVADO por defecto para que la IA responda a todos los jugadores
     gmModerationEnabled: false, // revisar respuestas del GM
 
     sylvieEnabled: false, // Sylvie por defecto dormida / desconectada
@@ -1291,6 +1318,33 @@ function ensureNonSilentReply(text, persona) {
     
   }
 
+  // ── Resetear chat para TODOS (solo GM) ───────────────────
+  function resetChatForAll() {
+    resetChatHistory();
+    sendWs({ type: "reset_chat" });
+  }
+
+  // ── Cerrar sesión (borra datos locales, no el chat) ──────
+  function logout() {
+    localStorage.removeItem("dwjc2_player");
+    localStorage.removeItem("dwjc2_gm_flag");
+    if (wsState.ws) wsState.ws.close();
+    window.location.href = "index.html";
+  }
+
+  // ── Auto-cierre por inactividad (60 min) ─────────────────
+  const AUTO_LOGOUT_MS = 60 * 60 * 1000;
+  let autoLogoutTimer = setTimeout(logout, AUTO_LOGOUT_MS);
+
+  function resetAutoLogout() {
+    clearTimeout(autoLogoutTimer);
+    autoLogoutTimer = setTimeout(logout, AUTO_LOGOUT_MS);
+  }
+
+  ["click", "keydown", "pointermove"].forEach((evt) => {
+    document.addEventListener(evt, resetAutoLogout, { passive: true });
+  });
+
 
   // 5) Modal de edición / moderación
   function openEditModal() {
@@ -1793,11 +1847,16 @@ if (editOverlay) {
           <section class="gm-section">
           <h4>Sesión / Mantenimiento</h4>
           <button id="gm-reset-chat" type="button" class="gm-danger-btn">
-            🧹 Reiniciar chat completo
+            🧹 Reiniciar chat completo (para todos)
+          </button>
+          <button id="gm-kick-all" type="button" class="gm-danger-btn" style="margin-top:0.4rem;">
+            🚪 Expulsar a todos los jugadores
+          </button>
+          <button id="gm-logout" type="button" class="gm-danger-btn" style="margin-top:0.4rem;">
+            🔓 Cerrar mi sesión
           </button>
           <p class="gm-small-hint">
-            Borra todo el historial y vuelve a mostrar el mensaje de bienvenida
-            en este navegador.
+            Reiniciar borra el historial para todos. Expulsar devuelve a todos al login.
           </p>
         </section>
           <h4>GM principal</h4>
@@ -1815,9 +1874,11 @@ if (editOverlay) {
           <label class="gm-field">
             <span>Modelo</span>
             <select id="gm-model-select">
-              <option value="llama-3.3-70b">llama-3.3-70b</option>
-              <option value="qwen-3-32b">qwen-3-32b</option>
-              <option value="gpt-oss-120b">gpt-oss-120b</option>
+              <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
+              <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
+              <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
+              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
+              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
               <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
             </select>
@@ -2016,10 +2077,28 @@ if (editOverlay) {
     if (resetChatBtn) {
       resetChatBtn.addEventListener("click", () => {
         const ok = window.confirm(
-          "¿Seguro que quieres borrar TODO el chat en este navegador?"
+          "¿Seguro que quieres borrar TODO el chat para todos los jugadores?"
         );
         if (!ok) return;
-        resetChatHistory();
+        resetChatForAll();
+      });
+    }
+
+    const kickAllBtn = panel.querySelector("#gm-kick-all");
+    if (kickAllBtn) {
+      kickAllBtn.addEventListener("click", () => {
+        const ok = window.confirm("¿Expulsar a todos los jugadores a la pantalla de login?");
+        if (!ok) return;
+        sendWs({ type: "kick_all" });
+      });
+    }
+
+    const gmLogoutBtn = panel.querySelector("#gm-logout");
+    if (gmLogoutBtn) {
+      gmLogoutBtn.addEventListener("click", () => {
+        const ok = window.confirm("¿Cerrar tu sesión?");
+        if (!ok) return;
+        logout();
       });
     }
 
