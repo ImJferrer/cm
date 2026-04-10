@@ -350,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
     gmCardPrompt: "",
     gmCardAvatarDataUrl: "",
     gmRole: "random", // rol activo del GM (villano, heroe, random)
-    gmEnabled: true, // ⬅️ GM ACTIVADO por defecto para que la IA responda a todos los jugadores
+    gmEnabled: false, // ⬅️ GM ACTIVADO por defecto para que la IA responda a todos los jugadores
     gmModerationEnabled: false, // revisar respuestas del GM
 
     sylvieEnabled: false, // Sylvie por defecto dormida / desconectada
