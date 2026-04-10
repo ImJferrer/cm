@@ -1177,8 +1177,6 @@ body.chat-page {
     .chat-scroll-area {
         flex: none;
         max-height: none;
-        height: auto;
-        overflow-y: visible;
         overflow-x: hidden;
         /* FIX: evita scroll horizontal por mensajes largos */
         padding: 0.75rem 0.9rem 4.5rem;
