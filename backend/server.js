@@ -56,11 +56,36 @@ function broadcast(payload, exceptWs) {
   }
 }
 
+// ── NUEVO: helpers de presencia ──────────────────────────────────────────────
+
+function buildPlayerList() {
+  const list = [];
+  for (const meta of wsClients.values()) {
+    list.push({ clientId: meta.id, name: meta.name });
+  }
+  return list;
+}
+
+function broadcastPlayerList() {
+  const data = JSON.stringify({
+    type: "player_list",
+    players: buildPlayerList(),
+  });
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
   const meta = { id: clientId, name: "Viajero" };
   wsClients.set(ws, meta);
 
+  // Bienvenida privada al recién llegado
   ws.send(JSON.stringify({ type: "welcome", clientId }));
 
   ws.on("message", (raw) => {
@@ -74,11 +99,21 @@ wss.on("connection", (ws) => {
 
     if (!parsed || typeof parsed !== "object") return;
 
+    // ── hello: registra nombre y notifica a todos ──────────
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
+
+      // Avisamos a TODOS (incluido él mismo) que llegó alguien
+      broadcast(
+        { type: "presence", event: "join", clientId, name: meta.name },
+        null
+      );
+      // Enviamos la lista completa actualizada a todos
+      broadcastPlayerList();
       return;
     }
 
+    // ── chat: reenviar a los demás ─────────────────────────
     if (parsed.type === "chat" && parsed.message) {
       const msg = parsed.message || {};
       const text = safeString(msg.text, 4000);
@@ -99,8 +134,18 @@ wss.on("connection", (ws) => {
     }
   });
 
+  // ── desconexión: avisamos y actualizamos la lista ─────────
   ws.on("close", () => {
+    const leaving = wsClients.get(ws);
     wsClients.delete(ws);
+
+    if (leaving) {
+      broadcast(
+        { type: "presence", event: "leave", clientId: leaving.id, name: leaving.name },
+        null
+      );
+      broadcastPlayerList();
+    }
   });
 
   ws.on("error", (err) => {
