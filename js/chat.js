@@ -198,6 +198,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
   const player = JSON.parse(playerRaw);
+
+  // ── Variables que dependen de player ─────────────────────
+  let remotePlayers = []; // jugadores remotos del WS
+
   connectWebSocket(player.name || "Viajero");
 
   // Botón de cerrar sesión para jugadores normales
@@ -667,9 +671,6 @@ document.addEventListener("DOMContentLoaded", () => {
       prompt: promptFromCard,
     };
   }
-
-  // Lista de jugadores humanos conectados que llegan por WebSocket
-  let remotePlayers = [];
 
   // 3) Lista de personajes (jugador, GM, Sylvie)
   function renderPlayers() {
