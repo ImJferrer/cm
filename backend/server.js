@@ -1,4 +1,3 @@
-// backend/server.js
 import express from "express";
 import cors from "cors";
 import http from "http";
@@ -15,24 +14,6 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const GM_PASSWORD = process.env.GM_PASSWORD || "Sylv13";
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
 
-if (!CEREBRAS_API_KEY) {
-  console.warn("[warn] Falta CEREBRAS_API_KEY en .env");
-}
-
-if (!GEMINI_API_KEY) {
-  console.warn("[warn] Falta GEMINI_API_KEY en .env (solo se usara Gemini si existe)");
-}
-
-if (!GM_PASSWORD) {
-  console.warn("[warn] Falta GM_PASSWORD en .env (usando valor por defecto).");
-}
-
-if (!SYLVIE_HARD_PROMPT) {
-  console.warn(
-    "[warn] Falta SYLVIE_HARD_PROMPT en .env. Sylvie no tendra limites."
-  );
-}
-
 app.use(cors());
 app.use(express.json());
 
@@ -48,7 +29,7 @@ function safeString(value, maxLen) {
   return String(value).slice(0, maxLen);
 }
 
-function broadcast(payload, exceptWs) {
+function broadcast(payload, exceptWs = null) {
   const data = JSON.stringify(payload);
   for (const client of wss.clients) {
     if (client !== exceptWs && client.readyState === WebSocket.OPEN) {
@@ -57,108 +38,77 @@ function broadcast(payload, exceptWs) {
   }
 }
 
-// ── NUEVO: helpers de presencia ──────────────────────────────────────────────
-
 function buildPlayerList() {
-  const list = [];
-  for (const meta of wsClients.values()) {
-    list.push({ clientId: meta.id, name: meta.name });
-  }
-  return list;
+  return Array.from(wsClients.values()).map(meta => ({
+    clientId: meta.id,
+    name: meta.name
+  }));
 }
 
 function broadcastPlayerList() {
-  const data = JSON.stringify({
-    type: "player_list",
-    players: buildPlayerList(),
-  });
-  for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  }
+  broadcast({ type: "player_list", players: buildPlayerList() });
 }
-
-// ────────────────────────────────────────────────────────────────────────────
 
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
   const meta = { id: clientId, name: "Viajero" };
   wsClients.set(ws, meta);
 
-  // Bienvenida privada al recién llegado
   ws.send(JSON.stringify({ type: "welcome", clientId }));
 
   ws.on("message", (raw) => {
     let parsed;
     try {
-      const text = typeof raw === "string" ? raw : raw.toString("utf-8");
-      parsed = JSON.parse(text);
-    } catch (_) {
-      return;
-    }
+      parsed = JSON.parse(typeof raw === "string" ? raw : raw.toString("utf-8"));
+    } catch (_) { return; }
 
     if (!parsed || typeof parsed !== "object") return;
 
-    // ── hello: registra nombre y notifica a todos ──────────
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
-
-      // Avisamos a TODOS (incluido él mismo) que llegó alguien
-      broadcast(
-        { type: "presence", event: "join", clientId, name: meta.name },
-        null
-      );
-      // Enviamos la lista completa actualizada a todos
+      broadcast({ type: "presence", event: "join", clientId, name: meta.name });
       broadcastPlayerList();
       return;
     }
 
-    // ── reset_chat: el GM borra el chat para todos ─────────
-    if (parsed.type === "reset_chat") {
-      if (meta.name.toLowerCase() !== "cristal") return;
-      broadcast({ type: "reset_chat" }, null);
+    // ✅ NUEVO: Typing de IA (GM / Sylvie) visible para TODOS los jugadores
+    if (parsed.type === "ai-typing") {
+      broadcast({ type: "ai-typing", author: safeString(parsed.author, 40) });
       return;
     }
 
-    // ── kick_all: el GM expulsa a todos ────────────────────
+    if (parsed.type === "typing") {
+      broadcast({ type: "typing", author: meta.name }, ws);
+      return;
+    }
+
+    if (parsed.type === "reset_chat") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "reset_chat" });
+      return;
+    }
+
     if (parsed.type === "kick_all") {
       if (meta.name.toLowerCase() !== "cristal") return;
       broadcast({ type: "kicked" }, ws);
       return;
     }
 
-    // ── chat: reenviar a los demás ─────────────────────────
+    if (parsed.type === "stop-typing") {
+  broadcast({ type: "stop-typing", author: meta.name });
+  return;
+  }
+
     if (parsed.type === "chat" && parsed.message) {
-      const msg = parsed.message || {};
-      const text = safeString(msg.text, 4000);
-      if (!text) return;
-
-      const author = safeString(msg.author, 40) || meta.name || "Viajero";
-      const time = safeString(msg.time, 12);
-      const role = msg.role === "assistant" ? "assistant" : "user";
-
-      broadcast(
-        {
-          type: "chat",
-          senderId: clientId,
-          message: { author, text, time, role },
-        },
-        ws
-      );
+      broadcast({ type: "chat", message: parsed.message }, ws);
     }
   });
 
-  // ── desconexión: avisamos y actualizamos la lista ─────────
   ws.on("close", () => {
     const leaving = wsClients.get(ws);
     wsClients.delete(ws);
-
     if (leaving) {
-      broadcast(
-        { type: "presence", event: "leave", clientId: leaving.id, name: leaving.name },
-        null
-      );
+      broadcast({ type: "presence", event: "leave", clientId: leaving.id, name: leaving.name });
       broadcastPlayerList();
     }
   });

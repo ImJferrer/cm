@@ -1,237 +1,155 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cross Moon ✦ Login</title>
-    <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Moon ✦ Login</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-    <!-- CARTEL SUPERIOR, COMO EN EL AEROPUERTO -->
-    <header class="migration-header">
-        <div class="migration-panel">
-            <span class="lamp"></span>
-            <span class="panel-title">CONTROL DE FRONTERAS INTERDIMENSIONAL</span>
-            <span class="panel-subtitle">
-                <span id="user-country">Real World</span> · Draw World JC-2
-            </span>
+  <header class="migration-header">
+    <div class="migration-panel">
+      <span class="lamp"></span>
+      <span class="panel-title">CONTROL DE FRONTERAS INTERDIMENSIONAL</span>
+      <span class="panel-subtitle">
+        <span id="user-country">Real World</span> · Draw World JC-2
+      </span>
+    </div>
+  </header>
+
+  <div class="scene">
+    <div class="table-surface"></div>
+
+    <main class="passport">
+      <section class="passport-page">
+        <div class="passport-upper">
+          <div class="passport-photo-block">
+            <div class="photo-label">Foto del Personaje</div>
+            <div class="photo-frame" id="photo-frame">
+              <div class="avatar-placeholder" id="avatar-placeholder">FOTO</div>
+              <img src="" alt="Avatar" class="avatar-img" id="avatar-preview" />
+            </div>
+            <p class="passport-note">
+              Bienvenido/a al Draw World JC-2. Este pasaporte certifica tu identidad como viajero interdimensional y autoriza tu tránsito conforme a lo dispuesto en la Gaceta Oficial de Tránsitos Interdimensionales N.º DW-42/JC-2.
+            </p>
+            <div class="passport-stamp">APROBADO</div>
+          </div>
+
+          <div class="passport-form-block">
+            <h1 class="passport-title">Pasaporte del Viajero</h1>
+            <p class="passport-intro">
+              Completa tus datos para registrar tu identidad interdimensional. Conserva este pasaporte para futuros regresos.
+            </p>
+
+            <form id="login-form" class="passport-form">
+              <div class="field-group">
+                <label for="name" class="field-label">Nombre del viajero</label>
+                <input type="text" id="name" class="field-input" placeholder="Nombre que portarás en el Cross Moon" required />
+              </div>
+
+              <div class="field-group">
+                <label for="history" class="field-label">Historia / Origen</label>
+                <textarea id="history" class="field-textarea" rows="4" placeholder="Describe quién eres, apariencia y de dónde vienes..." required></textarea>
+              </div>
+
+              <div class="field-group">
+                <label class="field-label">Foto del personaje <span class="field-required">*</span></label>
+                <button type="button" id="avatar-pick-btn" class="btn ghost avatar-pick-btn">
+                  📷 Seleccionar foto
+                </button>
+                <input type="file" id="avatar" accept="image/*" hidden />
+                <p id="avatar-required-hint" class="avatar-required-hint">La foto es obligatoria.</p>
+              </div>
+
+              <div class="field-group inline-buttons">
+                <button type="button" id="save-json" class="btn ghost">Guardar personaje</button>
+                <label for="load-json" class="btn ghost">
+                  Cargar personaje
+                  <input type="file" id="load-json" accept="application/json" hidden />
+                </label>
+              </div>
+
+              <div class="field-group">
+                <button class="btn primary" type="submit">Entregar Pasaporte</button>
+              </div>
+            </form>
+          </div>
         </div>
-    </header>
 
-    <!-- ESCENA PRINCIPAL: MESA + PASAPORTE -->
-    <div class="scene">
-        <div class="table-surface"></div>
+        <footer class="passport-footer">
+          <span>Oficina de Migraciones del Cross Moon</span>
+          <span class="passport-code">DW-JC2 · Terminal Lunar 02</span>
+        </footer>
+      </section>
 
-        <!-- PASAPORTE SOBRE LA MESA -->
-        <main class="passport">
-            <section class="passport-page">
-                <div class="passport-upper">
-                    <!-- FOTO / AVATAR -->
-                    <div class="passport-photo-block">
-                        <div class="photo-label">Foto del Personaje</div>
-                        <div class="photo-frame" id="photo-frame">
-                            <div class="avatar-placeholder" id="avatar-placeholder">
-                                FOTO
-                            </div>
-                            <img src="" alt="Avatar" class="avatar-img" id="avatar-preview" />
-                        </div>
+      <div class="passport-cover">
+        <div class="passport-cover-inner">
+          <div class="passport-cover-top">PASE INTERDIMENSIONAL TEMPORAL</div>
+          <div class="passport-cover-emblem">
+            <span class="passport-cover-symbol">✒️</span>
+          </div>
+          <div class="passport-cover-title">PASAPORTE</div>
+          <div class="passport-cover-sub">
+            <span id="user-country-cover">Real World</span> · Draw World JC-2
+          </div>
+          <div class="passport-cover-serial">
+            N.º SERIE <span id="passport-serial">DW-JC2-0001</span>
+          </div>
+          <div class="passport-chip"></div>
+        </div>
+      </div>
 
-                        <p class="passport-note">
-                            Bienvenido/a al Draw World JC-2.
-                            Este pasaporte certifica tu identidad como viajero interdimensional y autoriza tu tránsito
-                            conforme a lo dispuesto en la Gaceta Oficial de Tránsitos
-                            Interdimensionales N.º DW-42/JC-2.
-                        </p>
-
-
-
-                        <div class="passport-stamp">APROBADO</div>
-                    </div>
-
-                    <!-- DATOS DEL VIAJERO -->
-                    <div class="passport-form-block">
-                        <h1 class="passport-title">Pasaporte del Viajero</h1>
-                        <p class="passport-intro">
-                            Completa tus datos para registrar tu identidad interdimensional.
-                            Conserva este pasaporte para futuros regresos.
-                        </p>
-
-                        <form id="login-form" class="passport-form">
-                            <div class="field-group">
-                                <label for="name" class="field-label">Nombre del viajero</label>
-                                <input type="text" id="name" class="field-input"
-                                    placeholder="Nombre que portarás en el Cross Moon" required />
-                            </div>
-
-                            <div class="field-group">
-                                <label for="history" class="field-label">Historia / Origen</label>
-                                <textarea id="history" class="field-textarea" rows="4"
-                                    placeholder="Describe quién eres, apariencia y de dónde vienes..."
-                                    required></textarea>
-                            </div>
-
-                            <div class="field-group">
-                                <label for="avatar" class="field-label">
-                                    Archivo de foto (PNG / JPG)
-                                </label>
-                                <input type="file" id="avatar" class="field-input file-input" accept="image/*" />
-                            </div>
-
-                            <div class="field-group inline-buttons">
-                                <button type="button" id="save-json" class="btn ghost">
-                                    Guardar personaje
-                                </button>
-
-                                <label for="load-json" class="btn ghost">
-                                    Cargar personaje
-                                    <input type="file" id="load-json" accept="application/json" hidden />
-                                </label>
-                            </div>
-
-                            <div class="field-group">
-                                <button class="btn primary" type="submit">
-                                    Entregar Pasaporte
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- PIE DE PÁGINA DE LA PÁGINA DEL PASAPORTE -->
-                <footer class="passport-footer">
-                    <span>Oficina de Migraciones del Cross Moon</span>
-                    <span class="passport-code">DW-JC2 · Terminal Lunar 02</span>
-                </footer>
-            </section>
-
-            <div class="passport-cover">
-                <div class="passport-cover-inner">
-                    <div class="passport-cover-top">
-                        PASE INTERDIMENSIONAL TEMPORAL
-                    </div>
-
-                    <div class="passport-cover-emblem">
-                        <span class="passport-cover-symbol">✒️</span>
-                    </div>
-
-                    <div class="passport-cover-title">PASAPORTE</div>
-
-                    <div class="passport-cover-sub">
-                        <span id="user-country">Real World</span> · Draw World JC-2
-                    </div>
-
-                    <div class="passport-cover-serial">
-                        N.º SERIE <span id="passport-serial">DW-JC2-0001</span>
-                    </div>
-
-                    <div class="passport-chip" aria-hidden="true"></div>
-                </div>
-
+      <div class="avatar-crop-overlay" id="avatar-crop-overlay">
+        <div class="avatar-crop-dialog">
+          <h2 class="avatar-crop-title">Ajusta la foto</h2>
+          <p class="avatar-crop-help">Arrastra para centrar y usa el zoom para ajustar.</p>
+          <div class="avatar-crop-area">
+            <div class="avatar-crop-frame">
+              <img id="avatar-crop-image" src="" alt="" draggable="false" />
             </div>
-
-            <!-- OVERLAY PARA RECORTAR LA FOTO DEL PASAPORTE -->
-            <div class="avatar-crop-overlay" id="avatar-crop-overlay">
-                <div class="avatar-crop-dialog">
-                    <h2 class="avatar-crop-title">Ajusta la foto del pasaporte</h2>
-                    <p class="avatar-crop-help">
-                        Arrastra la imagen para centrarla dentro del marco y usa el zoom para acercar o alejar.
-                    </p>
-
-                    <div class="avatar-crop-area">
-                        <div class="avatar-crop-frame">
-                            <img id="avatar-crop-image" src="" alt="Previsualización de recorte" draggable="false" />
-
-                        </div>
-                    </div>
-
-                    <div class="avatar-crop-controls">
-                        <label class="avatar-zoom-label">
-                            Zoom
-                            <input type="range" id="avatar-zoom" min="1" max="2.5" step="0.01" value="1" />
-                        </label>
-
-                        <div class="avatar-crop-buttons">
-                            <button type="button" id="avatar-cancel" class="btn ghost">
-                                Cancelar
-                            </button>
-                            <button type="button" id="avatar-apply" class="btn primary">
-                                Usar esta foto
-                            </button>
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="avatar-crop-controls">
+            <label class="avatar-zoom-label">
+              Zoom
+              <input type="range" id="avatar-zoom" min="1" max="2.5" step="0.01" value="1" />
+            </label>
+            <div class="avatar-crop-buttons">
+              <button type="button" id="avatar-cancel" class="btn ghost">Cancelar</button>
+              <button type="button" id="avatar-apply" class="btn primary">Usar foto</button>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <!-- 🔐 MODAL DE CONTRASEÑA PARA PASAPORTES PROTEGIDOS (Cristal / Sylvie) -->
-            <div id="gm-auth-overlay" class="avatar-crop-overlay gm-auth-overlay">
-                <div class="avatar-crop-dialog gm-auth-dialog">
-                    <h2 class="avatar-crop-title">Pasaporte protegido</h2>
-                    <p id="gm-auth-message">
-                        Este pasaporte está protegido. Introduce la contraseña para continuar.
-                    </p>
+      <div id="gm-auth-overlay" class="avatar-crop-overlay gm-auth-overlay">
+        <div class="avatar-crop-dialog gm-auth-dialog">
+          <h2 class="avatar-crop-title">Pasaporte protegido</h2>
+          <p id="gm-auth-message">Este pasaporte está protegido. Introduce la contraseña para continuar.</p>
+          <input id="gm-auth-password" type="password" placeholder="Contraseña" style="width:100%;margin-top:0.5rem;margin-bottom:0.4rem;" />
+          <div id="gm-auth-error" style="color:#f97373;font-size:0.8rem;min-height:1.1rem;"></div>
+          <div class="avatar-crop-buttons" style="margin-top:0.5rem;">
+            <button type="button" id="gm-auth-cancel" class="btn ghost">Cancelar</button>
+            <button type="button" id="gm-auth-submit" class="btn primary">Desbloquear</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
 
-                    <input id="gm-auth-password" type="password" placeholder="Contraseña"
-                        style="width:100%; margin-top:0.5rem; margin-bottom:0.4rem;" />
-
-                    <div id="gm-auth-error" style="color:#f97373; font-size:0.8rem; min-height:1.1rem;"></div>
-
-                    <div class="avatar-crop-buttons" style="margin-top:0.5rem;">
-                        <button type="button" id="gm-auth-cancel" class="btn ghost">
-                            Cancelar
-                        </button>
-                        <button type="button" id="gm-auth-submit" class="btn primary">
-                            Desbloquear
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-        </main>
-
-
-
-
-
-        <script>
-            document.addEventListener("DOMContentLoaded", async () => {
-                const countrySpan = document.getElementById("user-country");
-                if (!countrySpan) return;
-
-                try {
-                    const res = await fetch("https://apip.cc/json");
-                    if (!res.ok) throw new Error("HTTP " + res.status);
-                    const data = await res.json();
-                    console.log("Geo IP:", data);
-
-                    // Usamos las claves reales de la API
-                    if (data.status !== "success") {
-                        console.log("Geo API no devolvió success");
-                        return;
-                    }
-
-                    const country =
-                        data.CountryName || // Nombre completo del país
-                        data.CountryCode || // Código (PE, ES, MX...)
-                        data.ContinentName; // Último fallback
-
-                    if (country) {
-                        countrySpan.textContent = country;
-                    }
-                    // Si no hay país, dejamos "Tu país"
-                } catch (err) {
-                    console.error("No se pudo detectar el país:", err);
-                }
-            });
-
-            
-
-        </script>
-
-        <script> window.DWJC2_API_BASE = "https://cross-moon.onrender.com"; </script>
-
-        <script src="js/login.js"></script>
+  <script>
+    (async () => {
+      try {
+        const spans = document.querySelectorAll("#user-country, #user-country-cover");
+        const res = await fetch("https://apip.cc/json");
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.status !== "success") return;
+        const country = d.CountryName || d.CountryCode || d.ContinentName;
+        if (country) spans.forEach(s => s.textContent = country);
+      } catch (_) {}
+    })();
+  </script>
+  <script>window.DWJC2_API_BASE = "https://cross-moon.onrender.com";</script>
+  <script src="js/login.js"></script>
 </body>
-
 </html>

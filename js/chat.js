@@ -1,19 +1,12 @@
-﻿// js/chat.js
-
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
-
   const messageInput = document.getElementById("message-input");
   const sendBtn = document.getElementById("send-btn");
-
   const playersListEl = document.getElementById("players-list");
   const playersCountEl = document.getElementById("players-count");
-
   const typingIndicator = document.getElementById("typing-indicator");
-  const typingLabel = typingIndicator
-    ? typingIndicator.querySelector(".typing-label")
-    : null;
+  const typingLabel = typingIndicator ? typingIndicator.querySelector(".typing-label") : null;
 
   const userNameEl = document.getElementById("chat-user-name");
   const userTagEl = document.getElementById("chat-user-tag");
@@ -30,90 +23,83 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveEditBtn = document.getElementById("saveEditBtn");
   const cancelEditBtn = document.getElementById("cancelEditBtn");
 
-    // Elementos del modal de autenticacion de pasaportes especiales (Cristal / Sylvie)
   const gmAuthOverlay = document.getElementById("gm-auth-overlay");
   const gmAuthPasswordInput = document.getElementById("gm-auth-password");
   const gmAuthError = document.getElementById("gm-auth-error");
   const gmAuthMessage = document.getElementById("gm-auth-message");
   const gmAuthCancelBtn = document.getElementById("gm-auth-cancel");
   const gmAuthSubmitBtn = document.getElementById("gm-auth-submit");
-  let gmAuthMode = null; // "cristal" | "sylvie" | null
+
+  let typingUsers = [];
+
+  let gmAuthMode = null;
 
   const API_BASE = resolveApiBase();
   const API_URL = API_BASE ? `${API_BASE}/api/chat` : "";
   const GM_AUTH_URL = API_BASE ? `${API_BASE}/api/gm-auth` : "";
   const WS_URL = API_BASE ? API_BASE.replace(/^http/i, "ws") + "/ws" : "";
 
-  const wsState = {
-    ws: null,
-    connected: false,
-    clientId: null,
-  };
-
-  // Jugadores remotos — debe estar aquí arriba porque handleWsMessage lo usa
+  const wsState = { ws: null, connected: false, clientId: null };
   let remotePlayers = [];
+  
 
   function resolveApiBase() {
-    const raw =
-      window.DWJC2_API_BASE ||
-      localStorage.getItem("dwjc2_api_base") ||
-      window.location.origin;
+    const raw = window.DWJC2_API_BASE || localStorage.getItem("dwjc2_api_base") || window.location.origin;
     return String(raw || "").replace(/\/+$/, "");
   }
 
   const HISTORY_KEY = "dwjc2_chat_history";
-
   const GM_SETTINGS_KEY = "dwjc2_gm_settings";
-
   const SYLVIE_NAME = "Sylvie";
-
-    const AI_HISTORY_LIMIT = 80;       // Cuántos mensajes recientes ve la IA
-  const TYPING_MIN_DELAY_MS = 700;   // Tiempo mínimo de "escribiendo..." en ms
-
+  const AI_HISTORY_LIMIT = 80;
+  const TYPING_MIN_DELAY_MS = 700;
 
   function autoResizeMessageInput() {
     if (!messageInput) return;
-
     messageInput.style.height = "auto";
-
     const computed = window.getComputedStyle(messageInput);
     const lineHeight = parseFloat(computed.lineHeight) || 20;
-    const maxLines = 5;
-    const maxHeight = lineHeight * maxLines;
-
-    const newHeight = Math.min(messageInput.scrollHeight, maxHeight);
-    messageInput.style.height = newHeight + "px";
+    const maxHeight = lineHeight * 5;
+    messageInput.style.height = Math.min(messageInput.scrollHeight, maxHeight) + "px";
   }
 
   const WS_RECONNECT_MS = 2000;
 
   function sendWs(payload) {
     if (!wsState.ws || wsState.ws.readyState !== WebSocket.OPEN) return;
-    try {
-      wsState.ws.send(JSON.stringify(payload));
-    } catch (_) {}
+    try { wsState.ws.send(JSON.stringify(payload)); } catch (_) {}
   }
 
   function handleWsMessage(raw) {
     if (typeof raw !== "string") return;
     let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (_) {
-      return;
-    }
+    try { data = JSON.parse(raw); } catch (_) { return; }
     if (!data || typeof data !== "object") return;
 
-    // — Bienvenida: guarda tu propio clientId ─────────────────
-    if (data.type === "welcome") {
-      wsState.clientId = data.clientId || null;
+    // Typing humano
+    if (data.type === "typing" && data.author) {
+  if (data.author !== player.name) {
+    addTypingUser(data.author);
+  }
+  return;
+}
+
+  if (data.type === "stop-typing" && data.author) {
+  removeTypingUser(data.author);
+  return;
+  }
+
+    // Typing de IA (GM / Sylvie) → visible para TODOS
+    if (data.type === "ai-typing" && data.author) {
+      addTypingUser(data.author);
       return;
     }
 
-    // — Mensaje de chat remoto ────────────────────────────────
+    // Mensaje de chat (limpia el typing)
     if (data.type === "chat" && data.message) {
       const msg = data.message;
-      if (!msg || !msg.text || !msg.author) return;
+      // Limpia el typing del autor que acaba de enviar el mensaje
+      removeTypingUser(String(msg.author));
       addMessage(String(msg.text), String(msg.author), {
         role: msg.role,
         time: msg.time,
@@ -122,27 +108,29 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // — Lista completa de jugadores (snapshot) ────────────────
+    if (data.type === "welcome") {
+      wsState.clientId = data.clientId || null;
+      return;
+    }
+
     if (data.type === "player_list" && Array.isArray(data.players)) {
       remotePlayers = data.players;
       renderPlayers();
       return;
     }
 
-    // — Evento de presencia individual (join / leave) ─────────
     if (data.type === "presence") {
       if (data.event === "join") {
-        if (!remotePlayers.find((p) => p.clientId === data.clientId)) {
+        if (!remotePlayers.find(p => p.clientId === data.clientId)) {
           remotePlayers.push({ clientId: data.clientId, name: data.name });
         }
       } else if (data.event === "leave") {
-        remotePlayers = remotePlayers.filter((p) => p.clientId !== data.clientId);
+        remotePlayers = remotePlayers.filter(p => p.clientId !== data.clientId);
       }
       renderPlayers();
       return;
     }
 
-    // — GM resetea el chat para todos ─────────────────────
     if (data.type === "reset_chat") {
       messages = [];
       messageIdCounter = 1;
@@ -151,42 +139,28 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // — El GM expulsó a todos ──────────────────────────────
     if (data.type === "kicked") {
       localStorage.removeItem("dwjc2_player");
       localStorage.removeItem("dwjc2_gm_flag");
       window.location.href = "index.html";
-      return;
     }
   }
 
   function connectWebSocket(playerName) {
-    if (!WS_URL) return;
-    if (wsState.ws && wsState.ws.readyState === WebSocket.OPEN) return;
-
+    if (!WS_URL || (wsState.ws && wsState.ws.readyState === WebSocket.OPEN)) return;
     try {
       wsState.ws = new WebSocket(WS_URL);
-    } catch (err) {
-      console.warn("[ws] No se pudo abrir:", err);
-      return;
-    }
+    } catch (err) { console.warn("[ws] Error:", err); return; }
 
     wsState.ws.addEventListener("open", () => {
       wsState.connected = true;
       sendWs({ type: "hello", name: playerName || "Viajero" });
     });
 
-    wsState.ws.addEventListener("message", (event) => {
-      handleWsMessage(event.data);
-    });
-
+    wsState.ws.addEventListener("message", (event) => handleWsMessage(event.data));
     wsState.ws.addEventListener("close", () => {
       wsState.connected = false;
-      setTimeout(() => {
-        if (wsState.ws && wsState.ws.readyState === WebSocket.CLOSED) {
-          connectWebSocket(playerName);
-        }
-      }, WS_RECONNECT_MS);
+      setTimeout(() => connectWebSocket(playerName), WS_RECONNECT_MS);
     });
 
     wsState.ws.addEventListener("error", () => {
@@ -196,10 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 1) Cargar jugador del localStorage
   const playerRaw = localStorage.getItem("dwjc2_player");
-  if (!playerRaw) {
-    window.location.href = "index.html";
-    return;
-  }
+  if (!playerRaw) { window.location.href = "index.html"; return; }
   const player = JSON.parse(playerRaw);
 
   connectWebSocket(player.name || "Viajero");
@@ -436,6 +407,98 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     return "...";
   }
+
+  // ==========================
+// THEME SWITCHER
+// ==========================
+
+// ==================== TYPING INDICATOR PARA TODOS ====================
+
+  function updateTypingIndicator() {
+  console.log("[TYPING] updateTypingIndicator() - users:", typingUsers);
+  if (!typingIndicator || !typingLabel) {
+    console.log("[TYPING] Missing typingIndicator or typingLabel");
+    return;
+  }
+
+  if (typingUsers.length === 0) {
+    console.log("[TYPING] Hiding indicator (no users)");
+    typingIndicator.classList.add("hidden");
+    return;
+  }
+
+  console.log("[TYPING] Showing indicator for:", typingUsers);
+  typingIndicator.classList.remove("hidden");
+
+  if (typingUsers.length === 1) {
+    typingLabel.textContent = `${typingUsers[0]} está escribiendo...`;
+  } else {
+    typingLabel.textContent = `${typingUsers.join(", ")} están escribiendo...`;
+  }
+}
+
+function addTypingUser(name) {
+  if (!typingUsers.includes(name)) {
+    typingUsers.push(name);
+    updateTypingIndicator();
+  }
+}
+
+function removeTypingUser(name) {
+  typingUsers = typingUsers.filter(n => n !== name);
+  updateTypingIndicator();
+}
+
+  function showTyping(show, name) {
+    if (show && name) {
+      addTypingUser(name);
+    } else {
+      typingUsers = [];
+      updateTypingIndicator();
+    }
+  }
+
+  function hideTyping() {
+    typingUsers = [];
+    updateTypingIndicator();
+  }
+
+  // Typing del jugador (visible para los demás)
+  messageInput.addEventListener("input", () => {
+  if (messageInput.value.trim() !== "") {
+    sendWs({ type: "typing", author: player.name });
+  }
+
+  clearTimeout(window.typingTimeout);
+
+  window.typingTimeout = setTimeout(() => {
+    sendWs({ type: "stop-typing", author: player.name });
+  }, 1500); 
+  });
+  
+const themeSelector = document.getElementById("theme-selector");
+
+function applyTheme(theme) {
+  document.documentElement.classList.remove(
+    "theme-turquesa",
+    "theme-rojo",
+    "theme-negro",
+    "theme-verde"
+  );
+
+  document.documentElement.classList.add(`theme-${theme}`);
+  localStorage.setItem("dwjc2_theme", theme);
+}
+
+if (themeSelector) {
+  const savedTheme = localStorage.getItem("dwjc2_theme") || "turquesa";
+  themeSelector.value = savedTheme;
+  applyTheme(savedTheme);
+
+  themeSelector.addEventListener("change", () => {
+    applyTheme(themeSelector.value);
+  });
+}
 
   // ==============================
   //   CHARACTER CARD HELPERS (PNG/JSON)
@@ -1629,20 +1692,16 @@ if (editOverlay) {
 }
 
 
-  // 7) Backend + typing indicator
+  // 7) Backend + AI persona calls
 
-  function showTyping(show, whoName) {
-    if (!typingIndicator) return;
-    typingIndicator.classList.toggle("hidden", !show);
-    if (typingLabel && show && whoName) {
-      typingLabel.textContent = `${whoName} está escribiendo...`;
-    }
-  }
+  async function callPersona(persona, options = {}) {
+    const { collectOnly = false } = options;
+    const gmName = getGMName();
+    const displayName = persona === "gm" ? gmName : SYLVIE_NAME;
 
-    async function callPersona(persona, options = {}) {
-  const { collectOnly = false } = options;
-  const gmName = getGMName();
-  const displayName = persona === "gm" ? gmName : SYLVIE_NAME;
+    sendWs({ type: "ai-typing", author: displayName });
+
+    
 
   const wantsModeration =
     isGM &&
@@ -1762,20 +1821,21 @@ if (editOverlay) {
     );
     return null;
   } finally {
-    if (!moderationActive) {
-      showTyping(false);
+      if (!moderationActive) {
+        hideTyping();
+      }
     }
   }
-}
-
 
 
 
   // 8) Enviar mensajes del jugador
-      async function sendMessage() {
+  async function sendMessage() {
     if (!messageInput) return;
     const text = messageInput.value.trim();
     if (!text) return;
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     addMessage(text, player.name, { role: "user" });
     messageInput.value = "";
@@ -2312,5 +2372,3 @@ if (editOverlay) {
   // La contraseña ya se pidió en el Pasaporte (login).
   // Aquí solo usamos el nombre para saber si mostramos el Panel GM.
 });
-
-

@@ -16,6 +16,21 @@
     --text-muted: #9ca3af;
     --text-dark: #111827;
     --danger: #f97373;
+
+    /* Variables de tema que se usan en TODA la UI */
+    --send-btn-bg: linear-gradient(135deg, #4f46e5, #9333ea);
+    --send-btn-shadow: rgba(79, 70, 229, 0.6);
+    --send-btn-shadow-hover: rgba(79, 70, 229, 0.7);
+    --dot-color: #22c55e;
+    --dot-glow: rgba(34, 197, 94, 0.9);
+    --sidebar-count-border: rgba(52, 211, 153, 0.4);
+    --sidebar-count-color: #a7f3d0;
+    --sidebar-count-bg: rgba(6, 95, 70, 0.26);
+    --chip-border: rgba(59, 130, 246, 0.5);
+    --chip-color: #bfdbfe;
+    --chip-bg: rgba(59, 130, 246, 0.12);
+    --input-border: rgba(148, 163, 184, 0.6);
+    --input-focus-border: #6366f1;
 }
 
 *,
@@ -48,8 +63,6 @@ body.chat-page {
         sans-serif;
 }
 
-/* Fondo tipo blur encima (opcional) */
-/* Puedes cambiar esto por una imagen de anime si quieres */
 .chat-page::before {
     content: "";
     position: fixed;
@@ -78,7 +91,7 @@ body.chat-page {
     flex-direction: column;
     padding: 0.9rem 0.9rem 0.7rem;
     gap: 0.75rem;
-    z-index: 10;
+    z-index: 20;
 }
 
 .sidebar-header {
@@ -93,7 +106,7 @@ body.chat-page {
     width: 32px;
     height: 32px;
     border-radius: 999px;
-    background: radial-gradient(circle at 30% 20%, #facc15, #f97316);
+    background: radial-gradient(circle at 30% 20%, var(--accent), #f97316);
     color: #020617;
     font-weight: 800;
     display: flex;
@@ -140,9 +153,9 @@ body.chat-page {
     font-size: 0.7rem;
     padding: 0.1rem 0.45rem;
     border-radius: 999px;
-    border: 1px solid rgba(52, 211, 153, 0.4);
-    color: #a7f3d0;
-    background: rgba(6, 95, 70, 0.26);
+    border: 1px solid var(--sidebar-count-border);
+    color: var(--sidebar-count-color);
+    background: var(--sidebar-count-bg);
 }
 
 .players-list {
@@ -182,8 +195,8 @@ body.chat-page {
     width: 9px;
     height: 9px;
     border-radius: 999px;
-    background: #22c55e;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+    background: var(--dot-color);
+    box-shadow: 0 0 8px var(--dot-glow);
 }
 
 .player-info {
@@ -220,7 +233,6 @@ body.chat-page {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    /* clave para que el área scroll funcione */
 }
 
 /* Header */
@@ -279,15 +291,31 @@ body.chat-page {
 /* Chip */
 
 .chip {
-    font-size: 0.7rem;
-    padding: 0.18rem 0.6rem;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.75rem;
     border-radius: 999px;
+    font-size: 0.75rem;
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--chip-color);
+    gap: 0.35rem;
+}
+
+.chip::before {
+    content: none;
 }
 
 .chip-soft {
-    background: rgba(59, 130, 246, 0.12);
-    color: #bfdbfe;
-    border: 1px solid rgba(59, 130, 246, 0.5);
+    background: var(--chip-bg);
+    border-color: var(--chip-border);
+    color: var(--chip-color);
+}
+
+.status-chip.is-away {
+    opacity: 0.7;
 }
 
 /* Buttons */
@@ -316,16 +344,15 @@ body.chat-page {
 
 .menu-button {
     display: none;
-    /* solo móvil */
 }
 
 /* Scroll area */
 .chat-scroll-area {
     flex: 1;
     min-height: 0;
-    /* otra vez, clave */
     overflow-y: auto;
     padding: 1rem 1.5rem 0;
+    position: relative;
 }
 
 .chat-scroll-area::-webkit-scrollbar {
@@ -337,13 +364,34 @@ body.chat-page {
     border-radius: 999px;
 }
 
+/* Imagen de fondo del chat */
+.chat-scroll-area::before {
+    content: "";
+    position: fixed;
+    /* fixed para que cubra aunque haya scroll */
+    inset: 0;
+    background-image: url("assets/bg.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.25;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Contenido encima del fondo */
+.chat-box,
+.typing-indicator {
+    position: relative;
+    z-index: 1;
+}
+
 /* Chat box */
 
 .chat-box {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    /* quita cualquier height: 60vh; o similar que tengas antes */
 }
 
 /* Mensajes */
@@ -361,13 +409,15 @@ body.chat-page {
     display: flex;
     gap: 0.7rem;
     max-width: min(720px, 100%);
+    /* FIX: evita que el inner desborde su contenedor */
+    min-width: 0;
 }
 
 .chat-message.mine .chat-message-inner {
     flex-direction: row-reverse;
 }
 
-/* Avatar en mensajes (usa las mismas clases que en JS) */
+/* Avatar en mensajes */
 
 .chat-avatar {
     width: 32px;
@@ -384,11 +434,15 @@ body.chat-page {
 }
 
 .chat-avatar.me {
-    background: radial-gradient(circle at 30% 20%, #a855f7, #4c1d95);
+    background: radial-gradient(circle at 30% 20%, var(--accent), #4f46e5);
+}
+
+.chat-avatar.npc-sylvie {
+    background: radial-gradient(circle at 30% 20%, #ec4899, #7c2d12);
 }
 
 .chat-avatar.npc-gm {
-    background: radial-gradient(circle at 30% 20%, #facc15, #f97316);
+    background: radial-gradient(circle at 30% 20%, var(--accent), #f97316);
 }
 
 .chat-avatar.npc-luna {
@@ -406,6 +460,9 @@ body.chat-page {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    /* FIX: evita que la burbuja desborde */
+    min-width: 0;
+    max-width: 100%;
 }
 
 .chat-message.mine .chat-bubble {
@@ -419,6 +476,7 @@ body.chat-page {
     align-items: center;
     font-size: 0.7rem;
     opacity: 0.9;
+    gap: 0.35rem;
 }
 
 .chat-author {
@@ -437,7 +495,12 @@ body.chat-page {
     font-size: 0.9rem;
     line-height: 1.55;
     white-space: pre-wrap;
+    /* FIX: rompe palabras largas sin espacios (URLs, texto pegado) */
     word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    /* FIX: evita overflow horizontal */
+    overflow: hidden;
 }
 
 .chat-edited-tag {
@@ -486,7 +549,7 @@ body.chat-page {
     padding: 0.45rem 0.7rem;
     border-radius: 999px;
     background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.4);
+    border: 1px solid var(--accent-soft);
     font-size: 0.75rem;
     color: var(--text-muted);
 }
@@ -495,7 +558,7 @@ body.chat-page {
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: #e5e7eb;
+    background: var(--accent);
     animation: bounce 1s infinite ease-in-out;
 }
 
@@ -539,7 +602,12 @@ body.chat-page {
     border-radius: 999px;
     background: rgba(15, 23, 42, 0.95);
     padding: 0.4rem 0.6rem 0.4rem 0.9rem;
-    border: 1px solid rgba(148, 163, 184, 0.6);
+    border: 1px solid var(--input-border);
+    transition: border-color 0.15s ease;
+}
+
+.chat-input-inner:focus-within {
+    border-color: var(--accent);
 }
 
 .chat-input {
@@ -550,9 +618,9 @@ body.chat-page {
     color: var(--text-main);
     font-size: 0.9rem;
     max-height: 200px;
-    /* por si cambias el line-height */
+    /* FIX: evita que el textarea empuje el layout */
+    min-width: 0;
 }
-
 
 .chat-input:focus {
     outline: none;
@@ -579,17 +647,16 @@ body.chat-page {
     font-size: 0.85rem;
     text-transform: none;
     font-weight: 500;
-    background: linear-gradient(135deg, #4f46e5, #9333ea);
+    background: var(--send-btn-bg);
     color: #eef2ff;
-    box-shadow: 0 8px 18px rgba(79, 70, 229, 0.6);
-    transition: transform 0.08s ease, box-shadow 0.08s ease,
-        filter 0.08s ease;
+    box-shadow: 0 8px 18px var(--send-btn-shadow);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
 }
 
 .send-button:hover {
     filter: brightness(1.05);
     transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.7);
+    box-shadow: 0 10px 24px var(--send-btn-shadow-hover);
 }
 
 .send-icon {
@@ -646,10 +713,10 @@ body.chat-page {
 }
 
 .edit-modal-body textarea {
-  width: 100%;
-  min-height: 120px;
-  resize: vertical;
-  border-radius: 10px;
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    border-radius: 10px;
     border: 1px solid rgba(75, 85, 99, 0.9);
     background: #020617;
     color: var(--text-main);
@@ -658,37 +725,37 @@ body.chat-page {
 }
 
 .edit-modal-body textarea:focus {
-  outline: none;
-  border-color: #6366f1;
+    outline: none;
+    border-color: var(--accent);
 }
 
 .edit-dual-wrapper {
-  display: none;
-  gap: 12px;
-  grid-template-columns: 1fr 1fr;
+    display: none;
+    gap: 12px;
+    grid-template-columns: 1fr 1fr;
 }
 
 .edit-dual-wrapper.open {
-  display: grid;
+    display: grid;
 }
 
 .edit-dual-column {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .edit-dual-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #cbd5e1;
 }
 
 .edit-modal-footer {
-  padding: 0.7rem 1rem 0.9rem;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+    padding: 0.7rem 1rem 0.9rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .btn-primary,
@@ -701,8 +768,9 @@ body.chat-page {
 }
 
 .btn-primary {
-    background: #4f46e5;
-    color: #eef2ff;
+    background: var(--accent);
+    color: #020617;
+    font-weight: 600;
 }
 
 .btn-secondary {
@@ -711,151 +779,8 @@ body.chat-page {
 }
 
 /* ============================
-   Responsive
+   Status dropdown
    ============================ */
-
-/* =========================================
-   MODO MÓVIL: scroll de toda la página
-   ========================================= */
-
-@media (max-width: 900px) {
-    .chat-root {
-        display: block;
-        /* el scroll lo lleva toda la página, no el root */
-    }
-
-    .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 260px;
-        transform: translateX(-110%);
-        transition: transform 0.18s ease-out;
-    }
-
-    .chat-root.sidebar-open .sidebar {
-        transform: translateX(0);
-    }
-
-    .menu-button {
-        display: inline-flex;
-        /* icono ☰ visible en móvil */
-    }
-
-    .chat-scroll-area {
-        padding-inline: 0.9rem;
-    }
-
-    .chat-input-area {
-        padding-inline: 0.9rem;
-    }
-}
-
-
-@media (max-width: 768px) {
-
-    /* Que el body deje de comportarse como flex en móvil */
-    body.chat-page {
-        display: block;
-        min-height: 0;
-    }
-
-    /* El root ya no fuerza altura, solo se apila */
-    .chat-root {
-        display: block;
-        min-height: 0;
-    }
-
-    /* El main deja de ser flex a pantalla completa */
-    .chat-main {
-        display: block;
-        min-height: 0;
-    }
-
-    /* El área del chat ahora crece “normal” y usa
-     el scroll de la página, no un scroll interno */
-    .chat-scroll-area {
-        flex: none;
-        max-height: none;
-        height: auto;
-        overflow-y: visible;
-        padding: 0.75rem 0.9rem 4.5rem;
-        /* hueco para el input fijo */
-    }
-
-    /* Input fijo abajo de la pantalla */
-    .chat-input-area {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        padding: 0.45rem 0.9rem 0.75rem;
-        background: var(--bg-input);
-        border-top: 1px solid rgba(148, 163, 184, 0.4);
-    }
-
-    /* Un poco menos de borde redondo para móviles estrechos */
-    .chat-input-inner {
-        border-radius: 18px;
-    }
-}
-
-
-@media (max-width: 600px) {
-    .chat-bot-name {
-        font-size: 0.9rem;
-    }
-
-    .chat-bot-subtitle {
-        font-size: 0.7rem;
-    }
-
-    .chat-header {
-        padding-inline: 0.8rem;
-    }
-
-    .chat-scroll-area {
-        padding-top: 0.9rem;
-    }
-
-    .chat-message-inner {
-        max-width: 100%;
-    }
-}
-
-
-/* ---------- CHIP DE ESTADO (sin esfera naranja) ---------- */
-
-.chip {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(15, 23, 42, 0.85);
-    color: #e5e7eb;
-    gap: 0.35rem;
-}
-
-/* Por si antes usabas un circulito naranja */
-.chip::before {
-    content: none;
-}
-
-.chip-soft {
-    background: rgba(15, 23, 42, 0.85);
-}
-
-/* Estado de "Ausencia": se ve más tenue */
-.status-chip.is-away {
-    opacity: 0.7;
-}
-
-/* ---------- DROPDOWN DE ESTADO ---------- */
 
 .status-dropdown {
     position: relative;
@@ -896,7 +821,9 @@ body.chat-page {
     background: rgba(148, 163, 184, 0.16);
 }
 
-/* ---------- BACKDROP PARA EL MENÚ LATERAL EN MÓVIL ---------- */
+/* ============================
+   Backdrop móvil
+   ============================ */
 
 .sidebar-backdrop {
     position: fixed;
@@ -908,20 +835,14 @@ body.chat-page {
     z-index: 15;
 }
 
-/* Cuando el sidebar está abierto, activamos el fondo */
 .chat-root.sidebar-open .sidebar-backdrop {
     opacity: 1;
     pointer-events: auto;
 }
 
-/* Asegúrate de que el sidebar esté por encima del backdrop */
-.sidebar {
-    z-index: 20;
-}
-
-/* Si ya tenías reglas para .sidebar en móvil, esto las complementa */
-
-/* ========== PANEL SECRETO GM ========== */
+/* ============================
+   Panel GM
+   ============================ */
 
 .gm-panel {
     position: fixed;
@@ -932,7 +853,6 @@ body.chat-page {
     flex-direction: column;
     align-items: flex-end;
     pointer-events: none;
-    /* el toggle y el panel reactivan pointer-events */
 }
 
 .gm-toggle {
@@ -943,7 +863,7 @@ body.chat-page {
     height: 40px;
     font-size: 1.1rem;
     cursor: pointer;
-    background: radial-gradient(circle at 30% 20%, #fbbf24, #b91c1c);
+    background: radial-gradient(circle at 30% 20%, var(--accent), #b91c1c);
     color: #020617;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.7);
 }
@@ -962,13 +882,10 @@ body.chat-page {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.16s ease-out, transform 0.16s ease-out;
-
-    /* 👇 Nuevo: límite de altura + scroll interno */
     max-height: 70vh;
     overflow-y: auto;
 }
 
-/* Opcional: estilito al scrollbar del panel GM */
 .gm-panel-inner::-webkit-scrollbar {
     width: 6px;
 }
@@ -977,7 +894,6 @@ body.chat-page {
     background: rgba(75, 85, 99, 0.9);
     border-radius: 999px;
 }
-
 
 .gm-panel-inner.open {
     opacity: 1;
@@ -1026,10 +942,6 @@ body.chat-page {
     color: #e5e7eb;
 }
 
-.chat-avatar.npc-sylvie {
-    background: radial-gradient(circle at 30% 20%, #ec4899, #7c2d12);
-}
-
 .gm-section {
     border-top: 1px solid rgba(31, 41, 55, 0.9);
     padding-top: 0.45rem;
@@ -1064,16 +976,9 @@ body.chat-page {
     color: #9ca3af;
 }
 
-/* ========== SUBMENÚ DENTRO DEL GLOBO (⋯) ========== */
-
-.chat-meta-line {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.7rem;
-    opacity: 0.9;
-    gap: 0.35rem;
-}
+/* ============================
+   Submenú de burbuja (⋯)
+   ============================ */
 
 .chat-menu {
     position: relative;
@@ -1128,4 +1033,229 @@ body.chat-page {
 
 .chat-menu-item:hover {
     background: rgba(148, 163, 184, 0.2);
+}
+
+/* ==========================================
+   TEMAS — pintan TODA la UI, no solo burbuja
+   ========================================== */
+
+:root.theme-turquesa {
+    --bg-bubble-me: #0f766e;
+    --accent: #2dd4bf;
+    --accent-soft: rgba(45, 212, 191, 0.15);
+    --send-btn-bg: linear-gradient(135deg, #0f766e, #0891b2);
+    --send-btn-shadow: rgba(15, 118, 110, 0.6);
+    --send-btn-shadow-hover: rgba(15, 118, 110, 0.8);
+    --dot-color: #2dd4bf;
+    --dot-glow: rgba(45, 212, 191, 0.9);
+    --sidebar-count-border: rgba(45, 212, 191, 0.4);
+    --sidebar-count-color: #99f6e4;
+    --sidebar-count-bg: rgba(15, 118, 110, 0.26);
+    --chip-border: rgba(45, 212, 191, 0.5);
+    --chip-color: #99f6e4;
+    --chip-bg: rgba(45, 212, 191, 0.12);
+    --input-border: rgba(45, 212, 191, 0.4);
+    --input-focus-border: #2dd4bf;
+}
+
+:root.theme-rojo {
+    --bg-bubble-me: #991b1b;
+    --accent: #ef4444;
+    --accent-soft: rgba(239, 68, 68, 0.15);
+    --send-btn-bg: linear-gradient(135deg, #991b1b, #b91c1c);
+    --send-btn-shadow: rgba(153, 27, 27, 0.6);
+    --send-btn-shadow-hover: rgba(153, 27, 27, 0.8);
+    --dot-color: #ef4444;
+    --dot-glow: rgba(239, 68, 68, 0.9);
+    --sidebar-count-border: rgba(239, 68, 68, 0.4);
+    --sidebar-count-color: #fecaca;
+    --sidebar-count-bg: rgba(153, 27, 27, 0.26);
+    --chip-border: rgba(239, 68, 68, 0.5);
+    --chip-color: #fecaca;
+    --chip-bg: rgba(239, 68, 68, 0.12);
+    --input-border: rgba(239, 68, 68, 0.4);
+    --input-focus-border: #ef4444;
+}
+
+:root.theme-negro {
+    --bg-bubble-me: #1f2937;
+    --accent: #6b7280;
+    --accent-soft: rgba(107, 114, 128, 0.15);
+    --send-btn-bg: linear-gradient(135deg, #374151, #1f2937);
+    --send-btn-shadow: rgba(31, 41, 55, 0.8);
+    --send-btn-shadow-hover: rgba(31, 41, 55, 0.95);
+    --dot-color: #9ca3af;
+    --dot-glow: rgba(156, 163, 175, 0.6);
+    --sidebar-count-border: rgba(107, 114, 128, 0.4);
+    --sidebar-count-color: #d1d5db;
+    --sidebar-count-bg: rgba(31, 41, 55, 0.5);
+    --chip-border: rgba(107, 114, 128, 0.5);
+    --chip-color: #d1d5db;
+    --chip-bg: rgba(107, 114, 128, 0.12);
+    --input-border: rgba(107, 114, 128, 0.4);
+    --input-focus-border: #6b7280;
+}
+
+:root.theme-verde {
+    --bg-bubble-me: #065f46;
+    --accent: #22c55e;
+    --accent-soft: rgba(34, 197, 94, 0.15);
+    --send-btn-bg: linear-gradient(135deg, #065f46, #15803d);
+    --send-btn-shadow: rgba(6, 95, 70, 0.6);
+    --send-btn-shadow-hover: rgba(6, 95, 70, 0.8);
+    --dot-color: #22c55e;
+    --dot-glow: rgba(34, 197, 94, 0.9);
+    --sidebar-count-border: rgba(34, 197, 94, 0.4);
+    --sidebar-count-color: #bbf7d0;
+    --sidebar-count-bg: rgba(6, 95, 70, 0.26);
+    --chip-border: rgba(34, 197, 94, 0.5);
+    --chip-color: #bbf7d0;
+    --chip-bg: rgba(34, 197, 94, 0.12);
+    --input-border: rgba(34, 197, 94, 0.4);
+    --input-focus-border: #22c55e;
+}
+
+/* ============================
+   Responsive — 900px
+   ============================ */
+
+@media (max-width: 900px) {
+    .chat-root {
+        display: block;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 260px;
+        transform: translateX(-110%);
+        transition: transform 0.18s ease-out;
+    }
+
+    .chat-root.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .menu-button {
+        display: inline-flex;
+    }
+
+    .chat-scroll-area {
+        padding-inline: 0.9rem;
+    }
+
+    .chat-input-area {
+        padding-inline: 0.9rem;
+    }
+}
+
+/* ============================
+   Responsive — 768px (móvil)
+   ============================ */
+
+@media (max-width: 768px) {
+
+    body.chat-page {
+        display: block;
+        min-height: 0;
+    }
+
+    .chat-root {
+        display: block;
+        min-height: 0;
+    }
+
+    .chat-main {
+        display: block;
+        min-height: 0;
+    }
+
+    /* FIX imagen: usamos position fixed en el ::before así que
+       el scroll-area puede ser visible sin cortar la imagen */
+    .chat-scroll-area {
+        flex: none;
+        max-height: none;
+        height: auto;
+        overflow-y: visible;
+        overflow-x: hidden;
+        /* FIX: evita scroll horizontal por mensajes largos */
+        padding: 0.75rem 0.9rem 4.5rem;
+    }
+
+    /* Input fijo abajo */
+    .chat-input-area {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 0.45rem 0.9rem 0.75rem;
+        background: var(--bg-input);
+        border-top: 1px solid rgba(148, 163, 184, 0.4);
+    }
+
+    .chat-input-inner {
+        border-radius: 18px;
+    }
+
+    /* FIX mensajes largos en móvil */
+    .chat-message {
+        /* evita que el mensaje empuje el layout más allá del viewport */
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .chat-message-inner {
+        max-width: 92%;
+        min-width: 0;
+    }
+
+    .chat-bubble {
+        /* fuerza el quiebre de cualquier palabra larga */
+        word-break: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+    }
+
+    /* FIX imagen grande en móvil: el ::before ya es fixed,
+       así que cubre toda la pantalla correctamente.
+       Solo ajustamos que la posición sea center/center */
+    .chat-scroll-area::before {
+        background-position: center center;
+        background-size: cover;
+        opacity: 0.3;
+        /* un poco más visible en móvil */
+    }
+}
+
+/* ============================
+   Responsive — 600px
+   ============================ */
+
+@media (max-width: 600px) {
+    .chat-bot-name {
+        font-size: 0.9rem;
+    }
+
+    .chat-bot-subtitle {
+        font-size: 0.7rem;
+    }
+
+    .chat-header {
+        padding-inline: 0.8rem;
+    }
+
+    .chat-scroll-area {
+        padding-top: 0.9rem;
+    }
+
+    .chat-message-inner {
+        max-width: 100%;
+    }
+
+    /* Panel GM no tape el input en móviles pequeños */
+    .gm-panel {
+        bottom: 4.5rem;
+    }
 }
