@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -115,7 +115,21 @@
 
     if (data.type === "player_list" && Array.isArray(data.players)) {
       remotePlayers = data.players;
+      data.players.forEach(p => {
+        if (p.avatar) window.avatarsCache[p.name] = p.avatar;
+      });
+      localStorage.setItem("dwjc2_avatars_cache", JSON.stringify(window.avatarsCache));
       renderPlayers();
+      renderMessages();
+      return;
+    }
+
+    if (data.type === "avatar_update") {
+      if (data.name && data.avatar !== undefined) {
+        window.avatarsCache[data.name] = data.avatar;
+        localStorage.setItem("dwjc2_avatars_cache", JSON.stringify(window.avatarsCache));
+        renderMessages();
+      }
       return;
     }
 
@@ -154,7 +168,7 @@
 
     wsState.ws.addEventListener("open", () => {
       wsState.connected = true;
-      sendWs({ type: "hello", name: playerName || "Viajero" });
+      sendWs({ type: "hello", name: playerName || "Viajero", avatar: player.avatarDataUrl });
     });
 
     wsState.ws.addEventListener("message", (event) => handleWsMessage(event.data));
@@ -171,7 +185,16 @@
   // 1) Cargar jugador del localStorage
   const playerRaw = localStorage.getItem("dwjc2_player");
   if (!playerRaw) { window.location.href = "index.html"; return; }
-  const player = JSON.parse(playerRaw);
+  let player;
+  try {
+    player = JSON.parse(playerRaw);
+  } catch (err) {
+    localStorage.removeItem("dwjc2_player");
+    window.location.href = "index.html";
+    return;
+  }
+
+  window.avatarsCache = JSON.parse(localStorage.getItem("dwjc2_avatars_cache") || "{}");
 
   connectWebSocket(player.name || "Viajero");
 
@@ -205,8 +228,7 @@
   
 
   if (userTagEl) {
-    const num = Math.floor(Math.random() * 9000) + 1000;
-    userTagEl.textContent = `ID: DW-${num}`;
+    userTagEl.textContent = `ID: ${player.serial || 'DW-0000'}`;
   }
 
   if (userAvatarEl) {
@@ -354,12 +376,14 @@
     gmRole: "random", // rol activo del GM (villano, heroe, random)
     gmEnabled: false, // GM Desactivado por defecto para que la IA responda a todos los jugadores
     gmModerationEnabled: false, // revisar respuestas del GM
+    gmVisible: true, // mostrar GM en la lista de jugadores
 
     sylvieEnabled: false, // Sylvie por defecto dormida / desconectada
     sylvieModerationEnabled: false, // revisar respuestas de Sylvie
     sylvieAvatarEmoji: "👑",
     sylvieAvatarImageDataUrl: "",
     sylvieExtraPrompt: "",
+    sylvieVisible: true, // mostrar Sylvie en la lista de jugadores
   };
 
 
@@ -452,15 +476,21 @@ function removeTypingUser(name) {
   function showTyping(show, name) {
     if (show && name) {
       addTypingUser(name);
+    } else if (name) {
+      removeTypingUser(name);
     } else {
       typingUsers = [];
       updateTypingIndicator();
     }
   }
 
-  function hideTyping() {
-    typingUsers = [];
-    updateTypingIndicator();
+  function hideTyping(name) {
+    if (name) {
+      removeTypingUser(name);
+    } else {
+      typingUsers = [];
+      updateTypingIndicator();
+    }
   }
 
   // Typing del jugador (visible para los demás)
@@ -761,20 +791,23 @@ if (themeSelector) {
       }));
 
     // — NPCs / IA ─────────────────────────────────────────────
-    const npcs = [
-      {
+    const npcs = [];
+    if (gmSettings.gmVisible !== false) {
+      npcs.push({
         name: gmName,
         role: gmSettings.gmEnabled ? "Conectado" : "Desconectado",
         isMe: false,
         online: gmSettings.gmEnabled,
-      },
-      {
+      });
+    }
+    if (gmSettings.sylvieVisible !== false) {
+      npcs.push({
         name: SYLVIE_NAME,
         role: "Reina del Draw World",
         isMe: false,
         online: gmSettings.sylvieEnabled,
-      },
-    ];
+      });
+    }
 
     const allPlayers = [localPlayer, ...remoteHumans, ...npcs];
 
@@ -1142,54 +1175,32 @@ function ensureNonSilentReply(text, persona) {
     avatar.className = "chat-avatar";
 
     const gmName = getGMName();
+    let customAvatarUrl = window.avatarsCache[author];
 
     if (author === player.name) {
       // 👤 Avatar del jugador (tú / cualquier usuario)
       avatar.classList.add("me");
-
-      if (player.avatarDataUrl) {
-        // Usamos la MISMA foto del pasaporte
-        avatar.style.backgroundImage = `url("${player.avatarDataUrl}")`;
-        avatar.style.backgroundSize = "cover";
-        avatar.style.backgroundPosition = "center";
-        avatar.textContent = "";
-      } else {
-        // Si no hay foto, usamos la inicial como fallback
-        avatar.textContent = (author || "?")[0].toUpperCase();
-      }
+      customAvatarUrl = customAvatarUrl || player.avatarDataUrl;
     } else if (author === gmName) {
       // 🎭 GM / Narrador
       avatar.classList.add("npc-gm");
-
-      if (gmSettings.avatarImageDataUrl) {
-        avatar.style.backgroundImage = `url("${gmSettings.avatarImageDataUrl}")`;
-        avatar.style.backgroundSize = "cover";
-        avatar.style.backgroundPosition = "center";
-        avatar.textContent = "";
-      } else if (gmSettings.avatarEmoji && gmSettings.avatarEmoji.trim()) {
-        avatar.textContent = gmSettings.avatarEmoji.trim();
-      } else {
-        avatar.textContent = (gmName || "G")[0].toUpperCase();
-      }
+      customAvatarUrl = customAvatarUrl || gmSettings.avatarImageDataUrl;
     } else if (author === SYLVIE_NAME) {
       // 👑 Sylvie
       avatar.classList.add("npc-sylvie");
+      customAvatarUrl = customAvatarUrl || gmSettings.sylvieAvatarImageDataUrl;
+    }
 
-      if (gmSettings.sylvieAvatarImageDataUrl) {
-        avatar.style.backgroundImage = `url("${gmSettings.sylvieAvatarImageDataUrl}")`;
-        avatar.style.backgroundSize = "cover";
-        avatar.style.backgroundPosition = "center";
-        avatar.textContent = "";
-      } else if (
-        gmSettings.sylvieAvatarEmoji &&
-        gmSettings.sylvieAvatarEmoji.trim()
-      ) {
-        avatar.textContent = gmSettings.sylvieAvatarEmoji.trim();
-      } else {
-        avatar.textContent = "S";
-      }
+    if (customAvatarUrl) {
+      avatar.style.backgroundImage = `url("${customAvatarUrl}")`;
+      avatar.style.backgroundSize = "cover";
+      avatar.style.backgroundPosition = "center";
+      avatar.textContent = "";
+    } else if (author === gmName && gmSettings.avatarEmoji && gmSettings.avatarEmoji.trim()) {
+      avatar.textContent = gmSettings.avatarEmoji.trim();
+    } else if (author === SYLVIE_NAME && gmSettings.sylvieAvatarEmoji && gmSettings.sylvieAvatarEmoji.trim()) {
+      avatar.textContent = gmSettings.sylvieAvatarEmoji.trim();
     } else {
-      // Otros posibles autores (futuros humanos, NPCs, etc.)
       avatar.textContent = (author || "?")[0].toUpperCase();
     }
 
@@ -1267,43 +1278,7 @@ function ensureNonSilentReply(text, persona) {
       metaLine.appendChild(authorSpan);
       metaLine.appendChild(timeSpan);
 
-      // 🔽 Submenú sólo para tus propios mensajes
-      if (msg.author === player.name) {
-        const menuWrapper = document.createElement("div");
-        menuWrapper.className = "chat-menu";
-
-        const menuButton = document.createElement("button");
-        menuButton.type = "button";
-        menuButton.className = "chat-menu-toggle";
-        menuButton.innerHTML = "⋯";
-
-        const menuDropdown = document.createElement("div");
-        menuDropdown.className = "chat-menu-dropdown";
-
-        const editItem = document.createElement("button");
-        editItem.type = "button";
-        editItem.className = "chat-menu-item";
-        editItem.textContent = "Editar mensaje";
-
-        editItem.addEventListener("click", (e) => {
-          e.stopPropagation();
-          currentEditId = msg.id;
-          if (editOverlay) editOverlay.dataset.mode = "edit";
-          if (editTextArea) editTextArea.value = msg.text;
-          openEditModal();
-          menuDropdown.classList.remove("open");
-        });
-
-        menuButton.addEventListener("click", (e) => {
-          e.stopPropagation();
-          menuDropdown.classList.toggle("open");
-        });
-
-        menuDropdown.appendChild(editItem);
-        menuWrapper.appendChild(menuButton);
-        menuWrapper.appendChild(menuDropdown);
-        metaLine.appendChild(menuWrapper);
-      }
+      // 🔽 Submenú de edición eliminado
 
       const textDiv = document.createElement("div");
       textDiv.className = "chat-text";
@@ -1822,7 +1797,7 @@ if (editOverlay) {
     return null;
   } finally {
       if (!moderationActive) {
-        hideTyping();
+        hideTyping(displayName);
       }
     }
   }
@@ -1927,6 +1902,11 @@ if (editOverlay) {
             <span>Activar respuestas del GM</span>
           </label>
 
+          <label class="gm-checkbox">
+            <input id="gm-visible-toggle" type="checkbox" />
+            <span>Mostrar GM en lista de jugadores</span>
+          </label>
+
           <label class="gm-field">
             <span>Nombre visible del GM</span>
             <input id="gm-name-input" type="text" placeholder="..." />
@@ -2011,6 +1991,11 @@ if (editOverlay) {
           </label>
 
           <label class="gm-checkbox">
+            <input id="sylvie-visible-toggle" type="checkbox" />
+            <span>Mostrar Sylvie en lista de jugadores</span>
+          </label>
+
+          <label class="gm-checkbox">
             <input id="sylvie-moderation-toggle" type="checkbox" />
             <span>Revisar y aprobar respuestas de Sylvie</span>
           </label>
@@ -2040,6 +2025,7 @@ if (editOverlay) {
     const inner = panel.querySelector(".gm-panel-inner");
 
     const gmEnabledToggle = panel.querySelector("#gm-enabled-toggle");
+    const gmVisibleToggle = panel.querySelector("#gm-visible-toggle");
     const nameInput = panel.querySelector("#gm-name-input");
     const modelSelect = panel.querySelector("#gm-model-select");
     const stripThinkToggle = panel.querySelector("#gm-strip-think-toggle");
@@ -2056,6 +2042,7 @@ if (editOverlay) {
     const gmModerationToggle = panel.querySelector("#gm-moderation-toggle");
 
     const sylvieEnabledToggle = panel.querySelector("#sylvie-enabled-toggle");
+    const sylvieVisibleToggle = panel.querySelector("#sylvie-visible-toggle");
     const sylvieModerationToggle = panel.querySelector(
       "#sylvie-moderation-toggle"
     );
@@ -2066,6 +2053,9 @@ if (editOverlay) {
     // Inicializar valores desde gmSettings
     if (gmEnabledToggle) {
       gmEnabledToggle.checked = !!gmSettings.gmEnabled;
+    }
+    if (gmVisibleToggle) {
+      gmVisibleToggle.checked = gmSettings.gmVisible !== false;
     }
     if (nameInput) {
       nameInput.value = getGMName() || "";
@@ -2101,6 +2091,9 @@ if (editOverlay) {
     if (sylvieEnabledToggle) {
       sylvieEnabledToggle.checked = !!gmSettings.sylvieEnabled;
     }
+    if (sylvieVisibleToggle) {
+      sylvieVisibleToggle.checked = gmSettings.sylvieVisible !== false;
+    }
     if (sylvieModerationToggle) {
       sylvieModerationToggle.checked = !!gmSettings.sylvieModerationEnabled;
     }
@@ -2129,6 +2122,14 @@ if (editOverlay) {
     if (gmEnabledToggle) {
       gmEnabledToggle.addEventListener("change", () => {
         gmSettings.gmEnabled = gmEnabledToggle.checked;
+        saveGMSettings();
+        renderPlayers();
+      });
+    }
+
+    if (gmVisibleToggle) {
+      gmVisibleToggle.addEventListener("change", () => {
+        gmSettings.gmVisible = gmVisibleToggle.checked;
         saveGMSettings();
         renderPlayers();
       });
@@ -2225,12 +2226,14 @@ if (editOverlay) {
         if (!file) {
           gmSettings.avatarImageDataUrl = "";
           saveGMSettings();
+          sendWs({ type: "avatar_update", name: getGMName(), avatar: "" });
           return;
         }
         const reader = new FileReader();
         reader.onload = (e) => {
           gmSettings.avatarImageDataUrl = e.target.result;
           saveGMSettings();
+          sendWs({ type: "avatar_update", name: getGMName(), avatar: e.target.result });
         };
         reader.readAsDataURL(file);
       });
@@ -2309,6 +2312,14 @@ if (editOverlay) {
       });
     }
 
+    if (sylvieVisibleToggle) {
+      sylvieVisibleToggle.addEventListener("change", () => {
+        gmSettings.sylvieVisible = sylvieVisibleToggle.checked;
+        saveGMSettings();
+        renderPlayers();
+      });
+    }
+
     if (sylvieModerationToggle) {
       sylvieModerationToggle.addEventListener("change", () => {
         gmSettings.sylvieModerationEnabled = sylvieModerationToggle.checked;
@@ -2329,12 +2340,14 @@ if (editOverlay) {
         if (!file) {
           gmSettings.sylvieAvatarImageDataUrl = "";
           saveGMSettings();
+          sendWs({ type: "avatar_update", name: SYLVIE_NAME, avatar: "" });
           return;
         }
         const reader = new FileReader();
         reader.onload = (e) => {
           gmSettings.sylvieAvatarImageDataUrl = e.target.result;
           saveGMSettings();
+          sendWs({ type: "avatar_update", name: SYLVIE_NAME, avatar: e.target.result });
         };
         reader.readAsDataURL(file);
       });

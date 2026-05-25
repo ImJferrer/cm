@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const GM_PASSWORD = process.env.GM_PASSWORD || "Sylv13";
+const GM_PASSWORD = process.env.GM_PASSWORD;
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
 
 app.use(cors());
@@ -41,7 +41,8 @@ function broadcast(payload, exceptWs = null) {
 function buildPlayerList() {
   return Array.from(wsClients.values()).map(meta => ({
     clientId: meta.id,
-    name: meta.name
+    name: meta.name,
+    avatar: meta.avatar
   }));
 }
 
@@ -51,7 +52,7 @@ function broadcastPlayerList() {
 
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
-  const meta = { id: clientId, name: "Viajero" };
+  const meta = { id: clientId, name: "Viajero", avatar: null };
   wsClients.set(ws, meta);
 
   ws.send(JSON.stringify({ type: "welcome", clientId }));
@@ -66,8 +67,14 @@ wss.on("connection", (ws) => {
 
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
+      if (parsed.avatar) meta.avatar = parsed.avatar;
       broadcast({ type: "presence", event: "join", clientId, name: meta.name });
       broadcastPlayerList();
+      return;
+    }
+
+    if (parsed.type === "avatar_update") {
+      broadcast({ type: "avatar_update", name: parsed.name, avatar: parsed.avatar });
       return;
     }
 
@@ -95,9 +102,9 @@ wss.on("connection", (ws) => {
     }
 
     if (parsed.type === "stop-typing") {
-  broadcast({ type: "stop-typing", author: meta.name });
-  return;
-  }
+      broadcast({ type: "stop-typing", author: meta.name });
+      return;
+    }
 
     if (parsed.type === "chat" && parsed.message) {
       broadcast({ type: "chat", message: parsed.message }, ws);
@@ -193,13 +200,12 @@ app.post("/api/chat", async (req, res) => {
     const profilePrompt =
       playerName || playerHistory
         ? [
-            {
-              role: "system",
-              content: `Jugador actual: ${playerName || "Viajero"}. Historia / trasfondo: ${
-                playerHistory || "No se proporciono historia; tratalo como recien llegado."
+          {
+            role: "system",
+            content: `Jugador actual: ${playerName || "Viajero"}. Historia / trasfondo: ${playerHistory || "No se proporciono historia; tratalo como recien llegado."
               }. Si el jugador se llama Cristal, reconoce que es Cristal.`,
-            },
-          ]
+          },
+        ]
         : [];
 
     // Ajuste de personaje del GM (villano, heroe, random, etc.)
@@ -210,11 +216,11 @@ app.post("/api/chat", async (req, res) => {
     const gmRoleGuard =
       persona === "gm"
         ? [
-            {
-              role: "system",
-              content: `Interpreta vividamente el rol de: ${resolvedGmRole}. Habla como personaje activo, con acciones y dialogo, no solo comentarios meta.`,
-            },
-          ]
+          {
+            role: "system",
+            content: `Interpreta vividamente el rol de: ${resolvedGmRole}. Habla como personaje activo, con acciones y dialogo, no solo comentarios meta.`,
+          },
+        ]
         : [];
 
     const targetModel = normalizeModel(model) || "llama-3.3-70b";

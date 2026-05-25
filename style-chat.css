@@ -1156,126 +1156,30 @@ body.chat-page {
    ============================ */
 
 @media (max-width: 768px) {
-
     body.chat-page {
-        display: block;
-        min-height: 0;
-    }
-
-    .chat-root {
-        display: block;
-        min-height: 0;
-    }
-
-    .chat-main {
-        display: block;
-        min-height: 0;
-    }
-
-    /* FIX imagen: usamos position fixed en el ::before así que
-       el scroll-area puede ser visible sin cortar la imagen */
-    .chat-scroll-area {
-        flex: none;
-        max-height: none;
-        overflow-x: hidden;
-        /* FIX: evita scroll horizontal por mensajes largos */
-        padding: 0.75rem 0.9rem 4.5rem;
-    }
-
-    /* Input fijo abajo */
-    .chat-input-area {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        padding: 0.45rem 0.9rem 0.75rem;
-        background: var(--bg-input);
-        border-top: 1px solid rgba(148, 163, 184, 0.4);
-    }
-
-    .chat-input-inner {
-        border-radius: 18px;
-    }
-
-    /* FIX mensajes largos en móvil */
-    .chat-message {
-        /* evita que el mensaje empuje el layout más allá del viewport */
-        max-width: 100%;
+        /* Usamos dvh (dynamic viewport height) para lidiar correctamente con el teclado móvil */
+        height: 100dvh;
+        min-height: 100dvh;
         overflow: hidden;
     }
 
-    .chat-message-inner {
-        max-width: 92%;
-        min-width: 0;
-    }
-
-    .chat-bubble {
-        /* fuerza el quiebre de cualquier palabra larga */
-        word-break: break-word;
-        overflow-wrap: break-word;
-        max-width: 100%;
-    }
-
-    /* FIX imagen grande en móvil: el ::before ya es fixed,
-       así que cubre toda la pantalla correctamente.
-       Solo ajustamos que la posición sea center/center */
-    .chat-scroll-area::before {
-        background-position: center center;
-        background-size: cover;
-        opacity: 0.3;
-        /* un poco más visible en móvil */
-    }
-}
-
-/* ============================
-   Responsive — 600px
-   ============================ */
-@media (max-width: 768px) {
-
-    body.chat-page {
-        display: block;
-        min-height: 100vh;
-    }
-
-    .chat-root {
-        display: block;
-        min-height: 100vh;
-    }
-
-    .chat-main {
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-    }
-
-    /* 🔥 Área de mensajes scrolleable REAL */
     .chat-scroll-area {
-        flex: 1;
-        overflow-y: auto;
         overflow-x: hidden;
-        padding: 0.75rem 0.9rem 6.5rem;
-        /* espacio para el input */
-        position: relative;
-        z-index: 1;
+        padding: 0.75rem 0.9rem 1rem;
     }
 
-    /* 🔥 Input fijo SIEMPRE arriba */
+    /* El input ya no usa position: fixed, se queda de forma natural al fondo del flexbox.
+       Esto evita que el teclado virtual lo tape o lo flote de forma errática. */
     .chat-input-area {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
         padding: 0.45rem 0.9rem 0.75rem;
-        background: var(--bg-input);
-        border-top: 1px solid rgba(148, 163, 184, 0.4);
-        z-index: 20;
+        flex-shrink: 0;
     }
 
     .chat-input-inner {
         border-radius: 18px;
     }
 
-    /* Evita desbordes raros */
+    /* Evita que los mensajes empujen el layout más allá del viewport */
     .chat-message {
         max-width: 100%;
         overflow: hidden;
@@ -1292,7 +1196,7 @@ body.chat-page {
         max-width: 100%;
     }
 
-    /* Fondo correctamente centrado */
+    /* Ajuste de imagen en móvil */
     .chat-scroll-area::before {
         background-position: center center;
         background-size: cover;
