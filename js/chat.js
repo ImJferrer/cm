@@ -49,18 +49,59 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const HISTORY_KEY = "dwjc2_chat_history";
+  const CHAT_VERSION_KEY = "dwjc2_chat_version";
   const GM_SETTINGS_KEY = "dwjc2_gm_settings";
   const SYLVIE_NAME = "Sylvie";
   const AI_HISTORY_LIMIT = 80;
   const TYPING_MIN_DELAY_MS = 700;
+  const SCROLL_BOTTOM_THRESHOLD = 96;
+  const DEFAULT_SHARED_ROSTER_STATE = {
+    gmName: "...",
+    gmVisible: true,
+    gmEnabled: false,
+    sylvieVisible: true,
+    sylvieEnabled: false,
+  };
+  let currentChatVersion = "";
+  let historyHydrated = false;
+  let chatStateSyncPromise = null;
+  let shouldStickToBottom = true;
+  let sharedRosterState = { ...DEFAULT_SHARED_ROSTER_STATE };
+
+  function getScrollContainer() {
+    return chatScrollArea || chatBox;
+  }
+
+  function isChatNearBottom() {
+    const container = getScrollContainer();
+    if (!container) return true;
+    const remaining =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    return remaining <= SCROLL_BOTTOM_THRESHOLD;
+  }
+
+  function syncViewportHeightVar() {
+    const viewportHeight = window.visualViewport
+      ? window.visualViewport.height
+      : window.innerHeight;
+    document.documentElement.style.setProperty(
+      "--app-height",
+      `${Math.round(viewportHeight)}px`
+    );
+  }
 
   function autoResizeMessageInput() {
     if (!messageInput) return;
+    const keepBottomVisible =
+      document.activeElement === messageInput && isChatNearBottom();
     messageInput.style.height = "auto";
     const computed = window.getComputedStyle(messageInput);
     const lineHeight = parseFloat(computed.lineHeight) || 20;
     const maxHeight = lineHeight * 5;
     messageInput.style.height = Math.min(messageInput.scrollHeight, maxHeight) + "px";
+    if (keepBottomVisible) {
+      scrollChatToBottom({ smooth: false, force: true });
+    }
   }
 
   const WS_RECONNECT_MS = 2000;
@@ -110,10 +151,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (data.type === "welcome") {
       wsState.clientId = data.clientId || null;
+      if (data.roster) {
+        applySharedRosterState(data.roster);
+      }
+      if (data.chatVersion) {
+        applyServerChatVersion(data.chatVersion);
+      }
       return;
     }
 
     if (data.type === "player_list" && Array.isArray(data.players)) {
+      if (data.roster) {
+        applySharedRosterState(data.roster);
+      }
+      if (data.chatVersion) {
+        applyServerChatVersion(data.chatVersion);
+      }
       remotePlayers = data.players;
       data.players.forEach(p => {
         if (p.avatar) window.avatarsCache[p.name] = p.avatar;
@@ -121,6 +174,11 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem("dwjc2_avatars_cache", JSON.stringify(window.avatarsCache));
       renderPlayers();
       renderMessages();
+      return;
+    }
+
+    if (data.type === "roster_state" && data.roster) {
+      applySharedRosterState(data.roster);
       return;
     }
 
@@ -146,10 +204,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (data.type === "reset_chat") {
-      messages = [];
-      messageIdCounter = 1;
-      localStorage.removeItem(HISTORY_KEY);
-      if (chatBox) chatBox.innerHTML = "";
+      resetChatHistory({
+        version: data.chatVersion || "",
+        preserveVersion: !!data.chatVersion,
+      });
       return;
     }
 
@@ -169,6 +227,9 @@ document.addEventListener("DOMContentLoaded", () => {
     wsState.ws.addEventListener("open", () => {
       wsState.connected = true;
       sendWs({ type: "hello", name: playerName || "Viajero", avatar: player.avatarDataUrl });
+      if (isGM) {
+        broadcastSharedRosterState();
+      }
     });
 
     wsState.ws.addEventListener("message", (event) => handleWsMessage(event.data));
@@ -196,7 +257,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.avatarsCache = JSON.parse(localStorage.getItem("dwjc2_avatars_cache") || "{}");
 
-  connectWebSocket(player.name || "Viajero");
 
   // Botón de cerrar sesión para jugadores normales
   const logoutBtnEl = document.getElementById("logout-btn");
@@ -318,13 +378,15 @@ document.addEventListener("DOMContentLoaded", () => {
       // Éxito: eres GM en este navegador
       localStorage.setItem("dwjc2_gm_flag", "1");
       isGM = true;
-       gmSettings.gmEnabled = true;
+      gmSettings.gmEnabled = true;
       saveGMSettings();
 
       // Cargamos settings (si los habia) y montamos el panel GM
       loadGMSettings();
+      sharedRosterState = buildSharedRosterStateFromSettings();
       closeGmAuthModal();
       setupGMPanel();
+      broadcastSharedRosterState();
 
       // Actualizamos mensajes tipo "X esta escribiendo..."
       if (typingLabel) {
@@ -418,16 +480,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (isGM) {
     loadGMSettings();
+    sharedRosterState = buildSharedRosterStateFromSettings();
+  }
+
+  function normalizeSharedRosterState(raw = {}) {
+    return {
+      gmName:
+        (typeof raw.gmName === "string" && raw.gmName.trim()) ||
+        DEFAULT_SHARED_ROSTER_STATE.gmName,
+      gmVisible: raw.gmVisible !== false,
+      gmEnabled: !!raw.gmEnabled,
+      sylvieVisible: raw.sylvieVisible !== false,
+      sylvieEnabled: !!raw.sylvieEnabled,
+    };
+  }
+
+  function applySharedRosterState(raw, options = {}) {
+    if (!raw || typeof raw !== "object") return;
+    sharedRosterState = normalizeSharedRosterState({
+      ...sharedRosterState,
+      ...raw,
+    });
+
+    if (options.render !== false) {
+      renderPlayers();
+    }
+  }
+
+  function buildSharedRosterStateFromSettings() {
+    return normalizeSharedRosterState({
+      gmName: getGMName(),
+      gmVisible: gmSettings.gmVisible !== false,
+      gmEnabled: !!gmSettings.gmEnabled,
+      sylvieVisible: gmSettings.sylvieVisible !== false,
+      sylvieEnabled: !!gmSettings.sylvieEnabled,
+    });
+  }
+
+  function broadcastSharedRosterState() {
+    if (!isGM) return;
+    const roster = buildSharedRosterStateFromSettings();
+    applySharedRosterState(roster);
+    sendWs({ type: "roster_state", roster });
   }
 
   function getGMName() {
     const explicit = gmSettings.gmName;
     const fromCard = gmSettings.gmCardName;
+    const shared = sharedRosterState.gmName;
     if (explicit && explicit.trim().length > 0 && explicit.trim() !== "...") {
       return explicit.trim();
     }
     if (fromCard && fromCard.trim().length > 0) {
       return fromCard.trim();
+    }
+    if (shared && shared.trim().length > 0 && shared.trim() !== "...") {
+      return shared.trim();
     }
     return "...";
   }
@@ -459,6 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
   } else {
     typingLabel.textContent = `${typingUsers.join(", ")} están escribiendo...`;
   }
+  scrollChatToBottom({ smooth: true, force: false });
 }
 
 function addTypingUser(name) {
@@ -792,20 +901,20 @@ if (themeSelector) {
 
     // — NPCs / IA ─────────────────────────────────────────────
     const npcs = [];
-    if (gmSettings.gmVisible !== false) {
+    if (sharedRosterState.gmVisible !== false) {
       npcs.push({
         name: gmName,
-        role: gmSettings.gmEnabled ? "Conectado" : "Desconectado",
+        role: sharedRosterState.gmEnabled ? "Conectado" : "Desconectado",
         isMe: false,
-        online: gmSettings.gmEnabled,
+        online: sharedRosterState.gmEnabled,
       });
     }
-    if (gmSettings.sylvieVisible !== false) {
+    if (sharedRosterState.sylvieVisible !== false) {
       npcs.push({
         name: SYLVIE_NAME,
         role: "Reina del Draw World",
         isMe: false,
-        online: gmSettings.sylvieEnabled,
+        online: sharedRosterState.sylvieEnabled,
       });
     }
 
@@ -1121,29 +1230,58 @@ function ensureNonSilentReply(text, persona) {
   }
 
 
-    function scrollChatToBottom(smooth = true) {
-    const container = chatScrollArea || chatBox;
+    function scrollChatToBottom(options = {}) {
+    const config =
+      typeof options === "boolean"
+        ? { smooth: options, force: true }
+        : options;
+    const { smooth = true, force = false } = config;
+    const container = getScrollContainer();
     if (!container) return;
+    if (!force && !shouldStickToBottom) return;
+
+    const behavior = smooth ? "smooth" : "auto";
 
     requestAnimationFrame(() => {
-      const behavior = smooth ? "smooth" : "auto";
 
       // En móvil, el scroll real es el de la ventana, no el del contenedor
-      if (window.innerWidth <= 768) {
-        const maxHeight =
-          document.documentElement.scrollHeight || document.body.scrollHeight;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
 
-        window.scrollTo({
-          top: maxHeight,
-          behavior,
-        });
-      } else {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior,
-        });
+      const target =
+        typingIndicator && !typingIndicator.classList.contains("hidden")
+          ? typingIndicator
+          : chatBox?.lastElementChild;
+
+      if (target && typeof target.scrollIntoView === "function") {
+        try {
+          target.scrollIntoView({
+            block: "end",
+            inline: "nearest",
+            behavior,
+          });
+        } catch (_) {}
       }
+
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
     });
+
+    shouldStickToBottom = true;
+  }
+
+  function refreshStickToBottomState() {
+    shouldStickToBottom = isChatNearBottom();
+  }
+
+  function handleViewportLayoutChange() {
+    syncViewportHeightVar();
+    if (shouldStickToBottom) {
+      scrollChatToBottom({ smooth: false, force: true });
+    }
   }
 
   function loadHistory() {
@@ -1162,9 +1300,89 @@ function ensureNonSilentReply(text, persona) {
     }
   }
 
+  function normalizeChatVersion(value) {
+    return String(value || "").trim();
+  }
+
+  function persistChatVersion(version) {
+    const normalized = normalizeChatVersion(version);
+    if (!normalized) return;
+    currentChatVersion = normalized;
+    try {
+      localStorage.setItem(CHAT_VERSION_KEY, normalized);
+    } catch (err) {
+      console.error("No se pudo guardar la version del chat:", err);
+    }
+  }
+
+  function hydrateHistory() {
+    if (historyHydrated) return;
+    loadHistory();
+    historyHydrated = true;
+    renderMessages();
+  }
+
+  function applyServerChatVersion(version) {
+    const normalized = normalizeChatVersion(version);
+    if (!normalized) {
+      hydrateHistory();
+      return;
+    }
+
+    const storedVersion = normalizeChatVersion(
+      localStorage.getItem(CHAT_VERSION_KEY)
+    );
+
+    currentChatVersion = normalized;
+
+    if (!storedVersion || storedVersion !== normalized) {
+      resetChatHistory({ version: normalized, preserveVersion: true });
+      return;
+    }
+
+    persistChatVersion(normalized);
+    hydrateHistory();
+  }
+
+  async function syncChatStateFromServer() {
+    if (!API_BASE) {
+      hydrateHistory();
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat-state`, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`chat-state ${res.status}`);
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (data.roster) {
+        applySharedRosterState(data.roster);
+      }
+      applyServerChatVersion(data.chatVersion);
+    } catch (err) {
+      console.warn("[chat-state] No se pudo sincronizar la version del chat:", err);
+      hydrateHistory();
+    }
+  }
+
+  function ensureChatStateReady() {
+    if (!chatStateSyncPromise) {
+      chatStateSyncPromise = syncChatStateFromServer();
+    }
+    return chatStateSyncPromise;
+  }
+
   function saveHistory() {
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
+      if (currentChatVersion) {
+        localStorage.setItem(CHAT_VERSION_KEY, currentChatVersion);
+      }
     } catch (err) {
       console.error("No se pudo guardar historial:", err);
     }
@@ -1305,7 +1523,7 @@ function ensureNonSilentReply(text, persona) {
       chatBox.appendChild(wrapper);
     });
 
-    scrollChatToBottom(false);
+    scrollChatToBottom({ smooth: false, force: false });
   }
 
 
@@ -1331,8 +1549,9 @@ function ensureNonSilentReply(text, persona) {
     });
 
     saveHistory();
+    const forceScroll = !options.remote || shouldStickToBottom;
     renderMessages();
-    scrollChatToBottom(true);
+    scrollChatToBottom({ smooth: true, force: forceScroll });
 
     if (options.broadcast === false || options.remote) return;
     sendWs({
@@ -1341,20 +1560,22 @@ function ensureNonSilentReply(text, persona) {
     });
   }
 
-    function resetChatHistory() {
+    function resetChatHistory(options = {}) {
+    const { version = "", preserveVersion = false } = options;
     messages = [];
     messageIdCounter = 1;
     localStorage.removeItem(HISTORY_KEY);
 
-    if (chatBox) {
-      chatBox.innerHTML = "";
+    if (preserveVersion && normalizeChatVersion(version)) {
+      persistChatVersion(version);
+    } else {
+      currentChatVersion = "";
+      localStorage.removeItem(CHAT_VERSION_KEY);
     }
 
-    const gmName = getGMName();
-
-   
-
-    
+    shouldStickToBottom = true;
+    historyHydrated = true;
+    renderMessages();
   }
 
   // ── Resetear chat para TODOS (solo GM) ───────────────────
@@ -1670,6 +1891,7 @@ if (editOverlay) {
   // 7) Backend + AI persona calls
 
   async function callPersona(persona, options = {}) {
+    await ensureChatStateReady();
     const { collectOnly = false } = options;
     const gmName = getGMName();
     const displayName = persona === "gm" ? gmName : SYLVIE_NAME;
@@ -1806,6 +2028,7 @@ if (editOverlay) {
 
   // 8) Enviar mensajes del jugador
   async function sendMessage() {
+    await ensureChatStateReady();
     if (!messageInput) return;
     const text = messageInput.value.trim();
     if (!text) return;
@@ -1814,7 +2037,9 @@ if (editOverlay) {
 
     addMessage(text, player.name, { role: "user" });
     messageInput.value = "";
+    autoResizeMessageInput();
     messageInput.focus();
+    scrollChatToBottom({ smooth: false, force: true });
 
     const lead = whoIsMentionedFirst(text);
     const order =
@@ -1866,10 +2091,34 @@ if (editOverlay) {
 
     // ⬇️ NUEVO: auto-resize hasta 5 líneas
     messageInput.addEventListener("input", autoResizeMessageInput);
+    messageInput.addEventListener("focus", () => {
+      setTimeout(() => {
+        scrollChatToBottom({ smooth: false, force: true });
+      }, 120);
+    });
     autoResizeMessageInput();
   }
 
   // 9) Panel secreto de GM (solo tú lo ves)
+  // 9) Ajustes de viewport y scroll para mÃ³vil
+  syncViewportHeightVar();
+  refreshStickToBottomState();
+
+  if (chatScrollArea) {
+    chatScrollArea.addEventListener("scroll", refreshStickToBottomState, {
+      passive: true,
+    });
+  }
+
+  window.addEventListener("resize", handleViewportLayoutChange);
+  window.addEventListener("orientationchange", handleViewportLayoutChange);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", handleViewportLayoutChange);
+    window.visualViewport.addEventListener("scroll", handleViewportLayoutChange);
+  }
+
+  // 10) Panel secreto de GM (solo tÃº lo ves)
   function setupGMPanel() {
     const panel = document.createElement("div");
     panel.className = "gm-panel";
@@ -2124,6 +2373,7 @@ if (editOverlay) {
         gmSettings.gmEnabled = gmEnabledToggle.checked;
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
       });
     }
 
@@ -2132,6 +2382,7 @@ if (editOverlay) {
         gmSettings.gmVisible = gmVisibleToggle.checked;
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
       });
     }
 
@@ -2170,6 +2421,7 @@ if (editOverlay) {
         gmSettings.gmName = nameInput.value || "...";
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
       });
     }
 
@@ -2250,6 +2502,7 @@ if (editOverlay) {
           const result = await loadCharacterCardFromFile(file);
           saveGMSettings();
           renderPlayers();
+          broadcastSharedRosterState();
           if (nameInput) {
             nameInput.value = getGMName() || "";
           }
@@ -2286,6 +2539,7 @@ if (editOverlay) {
         }
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
         renderCardStatus();
       });
     }
@@ -2309,6 +2563,7 @@ if (editOverlay) {
         gmSettings.sylvieEnabled = sylvieEnabledToggle.checked;
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
       });
     }
 
@@ -2317,6 +2572,7 @@ if (editOverlay) {
         gmSettings.sylvieVisible = sylvieVisibleToggle.checked;
         saveGMSettings();
         renderPlayers();
+        broadcastSharedRosterState();
       });
     }
 
@@ -2376,9 +2632,11 @@ if (editOverlay) {
   }
 
 
-  // 10) Cargar historial y bienvenida inicial
-  loadHistory();
-  renderMessages();
+  // 10) Sincronizar reset global antes de abrir el historial local
+  ensureChatStateReady()
+    .finally(() => {
+      connectWebSocket(player.name || "Viajero");
+    });
 
   
 

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import http from "http";
+import fs from "node:fs";
 import WebSocket, { WebSocketServer } from "ws";
 import "dotenv/config";
 
@@ -13,6 +14,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const GM_PASSWORD = process.env.GM_PASSWORD;
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
+const CHAT_STATE_FILE = new URL("./data/chat-state.json", import.meta.url);
 
 app.use(cors());
 app.use(express.json());
@@ -28,6 +30,52 @@ function safeString(value, maxLen) {
   if (value == null) return "";
   return String(value).slice(0, maxLen);
 }
+
+function makeChatVersion() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeRosterState(raw = {}) {
+  return {
+    gmName: safeString(raw.gmName, 80).trim() || "...",
+    gmVisible: raw.gmVisible !== false,
+    gmEnabled: !!raw.gmEnabled,
+    sylvieVisible: raw.sylvieVisible !== false,
+    sylvieEnabled: !!raw.sylvieEnabled,
+  };
+}
+
+function loadChatState() {
+  try {
+    const raw = fs.readFileSync(CHAT_STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    const chatVersion = safeString(parsed?.chatVersion, 80).trim();
+    if (chatVersion) {
+      return {
+        chatVersion,
+        roster: normalizeRosterState(parsed?.roster),
+      };
+    }
+  } catch (_) {}
+
+  return {
+    chatVersion: makeChatVersion(),
+    roster: normalizeRosterState(),
+  };
+}
+
+let chatState = loadChatState();
+
+function saveChatState() {
+  try {
+    fs.mkdirSync(new URL("./data/", import.meta.url), { recursive: true });
+    fs.writeFileSync(CHAT_STATE_FILE, JSON.stringify(chatState, null, 2));
+  } catch (err) {
+    console.error("No se pudo guardar chat state:", err);
+  }
+}
+
+saveChatState();
 
 function broadcast(payload, exceptWs = null) {
   const data = JSON.stringify(payload);
@@ -47,15 +95,32 @@ function buildPlayerList() {
 }
 
 function broadcastPlayerList() {
-  broadcast({ type: "player_list", players: buildPlayerList() });
+  broadcast({
+    type: "player_list",
+    players: buildPlayerList(),
+    chatVersion: chatState.chatVersion,
+    roster: chatState.roster,
+  });
 }
+
+app.get("/api/chat-state", (_req, res) => {
+  res.json({
+    chatVersion: chatState.chatVersion,
+    roster: chatState.roster,
+  });
+});
 
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
   const meta = { id: clientId, name: "Viajero", avatar: null };
   wsClients.set(ws, meta);
 
-  ws.send(JSON.stringify({ type: "welcome", clientId }));
+  ws.send(JSON.stringify({
+    type: "welcome",
+    clientId,
+    chatVersion: chatState.chatVersion,
+    roster: chatState.roster,
+  }));
 
   ws.on("message", (raw) => {
     let parsed;
@@ -78,6 +143,17 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if (parsed.type === "roster_state") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      chatState.roster = normalizeRosterState({
+        ...chatState.roster,
+        ...(parsed.roster || {}),
+      });
+      saveChatState();
+      broadcast({ type: "roster_state", roster: chatState.roster });
+      return;
+    }
+
     // ✅ NUEVO: Typing de IA (GM / Sylvie) visible para TODOS los jugadores
     if (parsed.type === "ai-typing") {
       broadcast({ type: "ai-typing", author: safeString(parsed.author, 40) });
@@ -91,7 +167,9 @@ wss.on("connection", (ws) => {
 
     if (parsed.type === "reset_chat") {
       if (meta.name.toLowerCase() !== "cristal") return;
-      broadcast({ type: "reset_chat" });
+      chatState.chatVersion = makeChatVersion();
+      saveChatState();
+      broadcast({ type: "reset_chat", chatVersion: chatState.chatVersion });
       return;
     }
 

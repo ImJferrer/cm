@@ -2,7 +2,10 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Draw World JC-2 — Sala de Rol</title>
     <!-- CSS del chat -->
     <link rel="stylesheet" href="style-chat.css" />
@@ -123,7 +126,12 @@
               id="message-input"
               class="chat-input"
               rows="1"
-              placeholder="Mensaje"
+              placeholder="Escribe un mensaje"
+              aria-label="Escribe tu mensaje"
+              enterkeyhint="send"
+              autocapitalize="sentences"
+              autocomplete="off"
+              spellcheck="true"
             ></textarea>
 
             <div class="chat-input-actions">
