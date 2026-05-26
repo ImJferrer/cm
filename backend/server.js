@@ -86,6 +86,17 @@ function broadcast(payload, exceptWs = null) {
   }
 }
 
+function updateRosterState(raw = {}) {
+  chatState.roster = normalizeRosterState({
+    ...chatState.roster,
+    ...(raw || {}),
+  });
+  saveChatState();
+  broadcast({ type: "roster_state", roster: chatState.roster });
+  broadcastPlayerList();
+  return chatState.roster;
+}
+
 function buildPlayerList() {
   return Array.from(wsClients.values())
     .filter((meta) => {
@@ -125,6 +136,17 @@ app.get("/api/chat-state", (_req, res) => {
   });
 });
 
+app.post("/api/chat-state/roster", (req, res) => {
+  const requesterName = safeString(req.body?.name, 40).trim().toLowerCase();
+  if (requesterName !== "cristal") {
+    res.status(403).json({ error: "No autorizado." });
+    return;
+  }
+
+  const roster = updateRosterState(req.body?.roster || {});
+  res.json({ ok: true, roster });
+});
+
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
   const meta = { id: clientId, name: "Viajero", avatar: null };
@@ -160,13 +182,7 @@ wss.on("connection", (ws) => {
 
     if (parsed.type === "roster_state") {
       if (meta.name.toLowerCase() !== "cristal") return;
-      chatState.roster = normalizeRosterState({
-        ...chatState.roster,
-        ...(parsed.roster || {}),
-      });
-      saveChatState();
-      broadcast({ type: "roster_state", roster: chatState.roster });
-      broadcastPlayerList();
+      updateRosterState(parsed.roster || {});
       return;
     }
 

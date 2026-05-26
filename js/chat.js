@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -880,13 +880,6 @@ if (themeSelector) {
     playersListEl.innerHTML = "";
 
     const gmName = getGMName();
-    const hiddenSpecialNames = new Set();
-    if (sharedRosterState.gmVisible === false) {
-      hiddenSpecialNames.add("cristal");
-    }
-    if (sharedRosterState.sylvieVisible === false) {
-      hiddenSpecialNames.add(SYLVIE_NAME.toLowerCase());
-    }
 
     // — Jugador local (siempre primero) ───────────────────────
     const localPlayer = {
@@ -898,11 +891,7 @@ if (themeSelector) {
 
     // — Jugadores remotos humanos (vienen del WS) ─────────────
     const remoteHumans = remotePlayers
-      .filter((p) => {
-        if (p.clientId === wsState.clientId) return false;
-        const normalizedRemoteName = String(p.name || "").trim().toLowerCase();
-        return !hiddenSpecialNames.has(normalizedRemoteName);
-      })
+      .filter((p) => p.clientId !== wsState.clientId)
       .map((p) => ({
         name: p.name,
         role: "Conectado",
