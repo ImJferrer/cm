@@ -87,11 +87,26 @@ function broadcast(payload, exceptWs = null) {
 }
 
 function buildPlayerList() {
-  return Array.from(wsClients.values()).map(meta => ({
-    clientId: meta.id,
-    name: meta.name,
-    avatar: meta.avatar
-  }));
+  return Array.from(wsClients.values())
+    .filter((meta) => {
+      const normalizedName = safeString(meta?.name, 40).trim().toLowerCase();
+      if (!normalizedName) return true;
+      if (chatState.roster.gmVisible === false && normalizedName === "cristal") {
+        return false;
+      }
+      if (
+        chatState.roster.sylvieVisible === false &&
+        normalizedName === "sylvie"
+      ) {
+        return false;
+      }
+      return true;
+    })
+    .map((meta) => ({
+      clientId: meta.id,
+      name: meta.name,
+      avatar: meta.avatar
+    }));
 }
 
 function broadcastPlayerList() {
@@ -151,6 +166,7 @@ wss.on("connection", (ws) => {
       });
       saveChatState();
       broadcast({ type: "roster_state", roster: chatState.roster });
+      broadcastPlayerList();
       return;
     }
 

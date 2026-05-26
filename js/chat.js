@@ -880,6 +880,13 @@ if (themeSelector) {
     playersListEl.innerHTML = "";
 
     const gmName = getGMName();
+    const hiddenSpecialNames = new Set();
+    if (sharedRosterState.gmVisible === false) {
+      hiddenSpecialNames.add("cristal");
+    }
+    if (sharedRosterState.sylvieVisible === false) {
+      hiddenSpecialNames.add(SYLVIE_NAME.toLowerCase());
+    }
 
     // — Jugador local (siempre primero) ───────────────────────
     const localPlayer = {
@@ -891,7 +898,11 @@ if (themeSelector) {
 
     // — Jugadores remotos humanos (vienen del WS) ─────────────
     const remoteHumans = remotePlayers
-      .filter((p) => p.clientId !== wsState.clientId)
+      .filter((p) => {
+        if (p.clientId === wsState.clientId) return false;
+        const normalizedRemoteName = String(p.name || "").trim().toLowerCase();
+        return !hiddenSpecialNames.has(normalizedRemoteName);
+      })
       .map((p) => ({
         name: p.name,
         role: "Conectado",
