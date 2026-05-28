@@ -37,6 +37,7 @@
   const API_BASE = resolveApiBase();
   const API_URL = API_BASE ? `${API_BASE}/api/chat` : "";
   const GM_AUTH_URL = API_BASE ? `${API_BASE}/api/gm-auth` : "";
+  const ROSTER_STATE_URL = API_BASE ? `${API_BASE}/api/chat-state/roster` : "";
   const WS_URL = API_BASE ? API_BASE.replace(/^http/i, "ws") + "/ws" : "";
 
   const wsState = { ws: null, connected: false, clientId: null };
@@ -104,7 +105,82 @@
     }
   }
 
-  const WS_RECONNECT_MS = 2000;
+  const WS_RECONNECT_BASE_MS = 2000;
+  const WS_RECONNECT_MAX_MS = 30000;
+  let wsReconnectAttempts = 0;
+  let wsReconnectTimer = null;
+  let wsFirstConnected = false;
+
+  // ── Toast system ──────────────────────────────────────────
+  const toastQueue = [];
+  let toastActive = false;
+
+  function showToast(msg, { type = "info", duration = 4000, actions = [] } = {}) {
+    toastQueue.push({ msg, type, duration, actions });
+    if (!toastActive) processToastQueue();
+  }
+
+  function processToastQueue() {
+    if (!toastQueue.length) { toastActive = false; return; }
+    toastActive = true;
+    const { msg, type, duration, actions } = toastQueue.shift();
+
+    const existing = document.getElementById("dw-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "dw-toast";
+    toast.className = `dw-toast dw-toast--${type}`;
+    toast.innerHTML = `<span class="dw-toast__msg">${msg}</span>`;
+
+    actions.forEach(({ label, cb, primary }) => {
+      const btn = document.createElement("button");
+      btn.className = primary ? "dw-toast__btn dw-toast__btn--primary" : "dw-toast__btn";
+      btn.textContent = label;
+      btn.addEventListener("click", () => { toast.remove(); clearTimeout(toast._timer); cb && cb(); setTimeout(processToastQueue, 350); });
+      toast.appendChild(btn);
+    });
+
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("dw-toast--in"));
+
+    if (duration > 0) {
+      toast._timer = setTimeout(() => {
+        toast.classList.remove("dw-toast--in");
+        toast.addEventListener("transitionend", () => { toast.remove(); setTimeout(processToastQueue, 350); }, { once: true });
+      }, duration);
+    }
+  }
+
+  // ── WS connection status indicator ───────────────────────
+  function setConnectionStatus(status) {
+    // status: "connected" | "reconnecting" | "cold-start"
+    let dot = document.getElementById("ws-status-dot");
+    if (!dot) {
+      dot = document.createElement("span");
+      dot.id = "ws-status-dot";
+      dot.className = "ws-status-dot";
+      dot.title = "";
+      const headerCenter = document.querySelector(".chat-header-center");
+      if (headerCenter) headerCenter.appendChild(dot);
+    }
+    dot.className = "ws-status-dot ws-status--" + status;
+    const labels = { connected: "Conexión estable", reconnecting: "Reconectando…", "cold-start": "Iniciando servidor…" };
+    dot.title = labels[status] || "";
+  }
+
+  // ── beforeunload guard ────────────────────────────────────
+  let guardActive = false;
+  function activateNavigationGuard() {
+    if (guardActive) return;
+    guardActive = true;
+    window.addEventListener("beforeunload", (e) => {
+      if (messageInput && messageInput.value.trim().length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+  }
 
   function sendWs(payload) {
     if (!wsState.ws || wsState.ws.readyState !== WebSocket.OPEN) return;
@@ -220,12 +296,36 @@
 
   function connectWebSocket(playerName) {
     if (!WS_URL || (wsState.ws && wsState.ws.readyState === WebSocket.OPEN)) return;
+
+    // Cold start detection: if this is the first connection attempt, warn after 5s
+    let coldStartTimer = null;
+    if (!wsFirstConnected) {
+      coldStartTimer = setTimeout(() => {
+        setConnectionStatus("cold-start");
+        showToast("✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…", { type: "info", duration: 0 });
+      }, 5000);
+    }
+
     try {
       wsState.ws = new WebSocket(WS_URL);
-    } catch (err) { console.warn("[ws] Error:", err); return; }
+    } catch (err) { console.warn("[ws] Error:", err); clearTimeout(coldStartTimer); return; }
 
     wsState.ws.addEventListener("open", () => {
+      clearTimeout(coldStartTimer);
       wsState.connected = true;
+      wsReconnectAttempts = 0;
+      setConnectionStatus("connected");
+
+      // Remove any reconnecting/cold-start toast
+      const t = document.getElementById("dw-toast");
+      if (t) { t.classList.remove("dw-toast--in"); setTimeout(() => t.remove(), 350); }
+
+      if (wsFirstConnected) {
+        // Reconnected after a drop — show friendly message
+        showToast("✅ El puente interdimensional fue restaurado.", { type: "success", duration: 3000 });
+      }
+      wsFirstConnected = true;
+
       sendWs({ type: "hello", name: playerName || "Viajero", avatar: player.avatarDataUrl });
       if (isGM) {
         broadcastSharedRosterState();
@@ -233,12 +333,25 @@
     });
 
     wsState.ws.addEventListener("message", (event) => handleWsMessage(event.data));
+
     wsState.ws.addEventListener("close", () => {
+      clearTimeout(coldStartTimer);
       wsState.connected = false;
-      setTimeout(() => connectWebSocket(playerName), WS_RECONNECT_MS);
+      setConnectionStatus("reconnecting");
+
+      if (wsFirstConnected) {
+        // Only show toast after first successful connection to avoid noise on initial cold start
+        const attempt = wsReconnectAttempts + 1;
+        showToast(`🌀 La conexión se interrumpió. Reconectando el portal… (intento ${attempt})`, { type: "warning", duration: 0 });
+      }
+
+      wsReconnectAttempts++;
+      const delay = Math.min(WS_RECONNECT_BASE_MS * Math.pow(1.5, wsReconnectAttempts - 1), WS_RECONNECT_MAX_MS);
+      wsReconnectTimer = setTimeout(() => connectWebSocket(playerName), delay);
     });
 
     wsState.ws.addEventListener("error", () => {
+      clearTimeout(coldStartTimer);
       wsState.connected = false;
     });
   }
@@ -262,9 +375,14 @@
   const logoutBtnEl = document.getElementById("logout-btn");
   if (logoutBtnEl) {
     logoutBtnEl.addEventListener("click", () => {
-      const ok = window.confirm("¿Cerrar sesión?");
-      if (!ok) return;
-      logout();
+      showToast("¿Cerrar sesión y salir del Draw World?", {
+        type: "warning",
+        duration: 0,
+        actions: [
+          { label: "Cancelar", cb: null },
+          { label: "Cerrar sesión", primary: true, cb: logout },
+        ],
+      });
     });
   }
 
@@ -517,11 +635,38 @@
     });
   }
 
+  function persistSharedRosterState(roster) {
+    if (!ROSTER_STATE_URL) return;
+    fetch(ROSTER_STATE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: player?.name || "",
+        roster,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`roster-state ${res.status}`);
+        }
+        return res.json().catch(() => ({}));
+      })
+      .then((data) => {
+        if (data?.roster) {
+          applySharedRosterState(data.roster);
+        }
+      })
+      .catch((err) => {
+        console.warn("[roster-state] No se pudo persistir en el servidor:", err);
+      });
+  }
+
   function broadcastSharedRosterState() {
     if (!isGM) return;
     const roster = buildSharedRosterStateFromSettings();
     applySharedRosterState(roster);
     sendWs({ type: "roster_state", roster });
+    persistSharedRosterState(roster);
   }
 
   function getGMName() {
@@ -1335,8 +1480,20 @@ function ensureNonSilentReply(text, persona) {
 
     currentChatVersion = normalized;
 
+    // IMPORTANT: Only reset history if versions differ AND this is the initial load
+    // (historyHydrated=false). On a reconnect after a drop, versions may differ because
+    // the server restarted, but the local history in localStorage is the source of truth
+    // for everything the player already saw. We keep it and just update the version tag.
     if (!storedVersion || storedVersion !== normalized) {
-      resetChatHistory({ version: normalized, preserveVersion: true });
+      if (!historyHydrated) {
+        // First load with version mismatch → server reset the chat intentionally
+        resetChatHistory({ version: normalized, preserveVersion: true });
+      } else {
+        // Reconnect after drop → just adopt the new version without wiping
+        persistChatVersion(normalized);
+        // Show a gentle notice so the player knows they may have missed messages
+        showToast("📜 Reconectado. Los mensajes que ya tenías siguen aquí.", { type: "info", duration: 5000 });
+      }
       return;
     }
 
@@ -1350,10 +1507,20 @@ function ensureNonSilentReply(text, persona) {
       return;
     }
 
+    // Cold-start detection: warn if the server takes >5s to respond
+    let coldStartWarnTimer = setTimeout(() => {
+      setConnectionStatus("cold-start");
+      showToast("✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…", { type: "info", duration: 0 });
+    }, 5000);
+
     try {
       const res = await fetch(`${API_BASE}/api/chat-state`, {
         cache: "no-store",
       });
+
+      clearTimeout(coldStartWarnTimer);
+      const t = document.getElementById("dw-toast");
+      if (t) { t.classList.remove("dw-toast--in"); setTimeout(() => t.remove(), 350); }
 
       if (!res.ok) {
         throw new Error(`chat-state ${res.status}`);
@@ -1365,6 +1532,7 @@ function ensureNonSilentReply(text, persona) {
       }
       applyServerChatVersion(data.chatVersion);
     } catch (err) {
+      clearTimeout(coldStartWarnTimer);
       console.warn("[chat-state] No se pudo sincronizar la version del chat:", err);
       hydrateHistory();
     }
@@ -1594,12 +1762,65 @@ function ensureNonSilentReply(text, persona) {
 
   // ── Auto-cierre por inactividad (60 min) ─────────────────
   const AUTO_LOGOUT_MS = 60 * 60 * 1000;
-  let autoLogoutTimer = setTimeout(logout, AUTO_LOGOUT_MS);
+  const AUTO_LOGOUT_WARN_MS = 55 * 60 * 1000; // warn at 55 min
+  const AUTO_LOGOUT_GRACE_MS = 5 * 60 * 1000; // 5 min grace after warning
+  let autoLogoutTimer = null;
+  let autoLogoutWarnTimer = null;
+  let autoLogoutGraceTimer = null;
+
+  function scheduleAutoLogout() {
+    clearTimeout(autoLogoutTimer);
+    clearTimeout(autoLogoutWarnTimer);
+    clearTimeout(autoLogoutGraceTimer);
+
+    autoLogoutWarnTimer = setTimeout(() => {
+      // Show persistent toast with "Sigo aquí" button and countdown
+      let countdown = 5 * 60;
+      const countdownFmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+      const existing = document.getElementById("dw-toast");
+      if (existing) { existing.classList.remove("dw-toast--in"); setTimeout(() => existing.remove(), 350); }
+
+      const toast = document.createElement("div");
+      toast.id = "dw-toast";
+      toast.className = "dw-toast dw-toast--warning dw-toast--in";
+      const msgEl = document.createElement("span");
+      msgEl.className = "dw-toast__msg";
+      msgEl.textContent = `⏳ ¿Sigues en el Draw World? La conexión se cerrará en ${countdownFmt(countdown)}.`;
+      toast.appendChild(msgEl);
+
+      const btn = document.createElement("button");
+      btn.className = "dw-toast__btn dw-toast__btn--primary";
+      btn.textContent = "¡Sí, sigo aquí!";
+      btn.addEventListener("click", () => {
+        clearTimeout(autoLogoutGraceTimer);
+        clearInterval(countInterval);
+        toast.classList.remove("dw-toast--in");
+        setTimeout(() => toast.remove(), 350);
+        scheduleAutoLogout();
+      });
+      toast.appendChild(btn);
+      document.body.appendChild(toast);
+
+      const countInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) { clearInterval(countInterval); return; }
+        msgEl.textContent = `⏳ ¿Sigues en el Draw World? La conexión se cerrará en ${countdownFmt(countdown)}.`;
+      }, 1000);
+
+      autoLogoutGraceTimer = setTimeout(() => {
+        clearInterval(countInterval);
+        logout();
+      }, AUTO_LOGOUT_GRACE_MS);
+
+    }, AUTO_LOGOUT_WARN_MS);
+  }
 
   function resetAutoLogout() {
-    clearTimeout(autoLogoutTimer);
-    autoLogoutTimer = setTimeout(logout, AUTO_LOGOUT_MS);
+    scheduleAutoLogout();
   }
+
+  scheduleAutoLogout();
 
   ["click", "keydown", "pointermove"].forEach((evt) => {
     document.addEventListener(evt, resetAutoLogout, { passive: true });
@@ -1674,7 +1895,7 @@ function ensureNonSilentReply(text, persona) {
 
       const newText = editTextArea.value.trim();
       if (!newText) {
-        alert("El mensaje no puede estar vacio.");
+        showToast("El mensaje no puede estar vacío.", { type: "warning", duration: 3000 });
         return;
       }
 
@@ -2389,29 +2610,42 @@ if (editOverlay) {
         const resetChatBtn = panel.querySelector("#gm-reset-chat");
     if (resetChatBtn) {
       resetChatBtn.addEventListener("click", () => {
-        const ok = window.confirm(
-          "¿Seguro que quieres borrar TODO el chat para todos los jugadores?"
-        );
-        if (!ok) return;
-        resetChatForAll();
+        showToast("⚠️ ¿Borrar TODO el chat para todos los jugadores? Esta acción no se puede deshacer.", {
+          type: "danger",
+          duration: 0,
+          actions: [
+            { label: "Cancelar", cb: null },
+            { label: "Sí, reiniciar", primary: true, cb: resetChatForAll },
+          ],
+        });
       });
     }
 
     const kickAllBtn = panel.querySelector("#gm-kick-all");
     if (kickAllBtn) {
       kickAllBtn.addEventListener("click", () => {
-        const ok = window.confirm("¿Expulsar a todos los jugadores a la pantalla de login?");
-        if (!ok) return;
-        sendWs({ type: "kick_all" });
+        showToast("¿Expulsar a todos los jugadores al login?", {
+          type: "danger",
+          duration: 0,
+          actions: [
+            { label: "Cancelar", cb: null },
+            { label: "Expulsar", primary: true, cb: () => sendWs({ type: "kick_all" }) },
+          ],
+        });
       });
     }
 
     const gmLogoutBtn = panel.querySelector("#gm-logout");
     if (gmLogoutBtn) {
       gmLogoutBtn.addEventListener("click", () => {
-        const ok = window.confirm("¿Cerrar tu sesión?");
-        if (!ok) return;
-        logout();
+        showToast("¿Cerrar tu sesión como GM?", {
+          type: "warning",
+          duration: 0,
+          actions: [
+            { label: "Cancelar", cb: null },
+            { label: "Cerrar sesión", primary: true, cb: logout },
+          ],
+        });
       });
     }
 
@@ -2507,16 +2741,14 @@ if (editOverlay) {
             nameInput.value = getGMName() || "";
           }
           renderCardStatus();
-          alert(`Card cargada: ${result.cardName || "sin nombre"}`);
+          showToast(`✅ Card cargada: ${result.cardName || "sin nombre"}`, { type: "success", duration: 4000 });
         } catch (err) {
           console.error("Error al cargar card:", err);
           if (gmCardStatus) {
             gmCardStatus.textContent =
               "Error al cargar la card. Usa PNG/WebP con metadata o JSON válido.";
           }
-          alert(
-            "No se pudo leer la Character Card. Usa un PNG/WebP con metadata o un JSON válido."
-          );
+          showToast("No se pudo leer la Character Card. Usa un PNG/WebP con metadata o un JSON válido.", { type: "danger", duration: 6000 });
         }
       });
     }
@@ -2620,6 +2852,20 @@ if (editOverlay) {
     if (isGM) {
     setupGMPanel();
 
+    // Ocultar botón GM mientras el textarea tiene foco (evita tapar teclado en móvil)
+    if (messageInput) {
+      messageInput.addEventListener("focus", () => {
+        const gmToggle = document.querySelector(".gm-toggle");
+        const gmInner = document.querySelector(".gm-panel-inner");
+        if (gmToggle) gmToggle.style.opacity = "0";
+        if (gmInner) gmInner.classList.remove("open");
+      });
+      messageInput.addEventListener("blur", () => {
+        const gmToggle = document.querySelector(".gm-toggle");
+        if (gmToggle) gmToggle.style.opacity = "";
+      });
+    }
+
     // Abre el panel la primera vez para que se note que existe
     const firstTime = !localStorage.getItem("dwjc2_gm_panel_seen");
     if (firstTime) {
@@ -2633,6 +2879,8 @@ if (editOverlay) {
 
 
   // 10) Sincronizar reset global antes de abrir el historial local
+  setConnectionStatus("reconnecting");
+  activateNavigationGuard();
   ensureChatStateReady()
     .finally(() => {
       connectWebSocket(player.name || "Viajero");
