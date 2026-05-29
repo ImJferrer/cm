@@ -650,6 +650,7 @@ body.chat-page {
     border: none;
     background: transparent;
     color: var(--text-main);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
     font-size: 1rem;
     line-height: 1.45;
     max-height: 200px;
@@ -663,6 +664,7 @@ body.chat-page {
 
 .chat-input::placeholder {
     color: rgba(148, 163, 184, 0.9);
+    font-family: inherit;
 }
 
 .chat-input-actions {
