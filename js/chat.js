@@ -1957,6 +1957,9 @@ if (editOverlay) {
     );
     parts.push(`Jugador actual: ${playerName}.`);
     parts.push(`Historia / lore del jugador: ${playerHistory}.`);
+    parts.push(
+      "La historia del jugador tambien funciona como descripcion fisica y de presencia: ropa, colores, ojos, cabello, marcas, forma de moverse y aura. Usa esos detalles cuando la escena lo haga natural, por ejemplo al reconocerlo, mirarlo, notar una reaccion o describir como impacta en el entorno. No lo menciones en cada respuesta ni repitas siempre el mismo rasgo; integralo de forma sutil y organica."
+    );
     parts.push("Si el jugador se llama Cristal, reconoces que es Cristal.");
   parts.push(
     `Interpreta vividamente el rol seleccionado: ${gmRoleLabel}. Habla en presente con acciones y dialogo, no como comentarista externo.`
@@ -2100,6 +2103,9 @@ if (editOverlay) {
 
   parts.push(`Jugador actual: ${playerName}.`);
   parts.push(`Historia / lore del jugador: ${playerHistory}.`);
+  parts.push(
+    "La historia del jugador tambien contiene su apariencia y presencia: ropa, colores, ojos, cabello, marcas, postura, aura o estilo. Puedes notar esos detalles de vez en cuando cuando sea emocionalmente o visualmente natural, como al mirarlo, acercarte, reconocerlo o reaccionar a su estado. No lo fuerces en cada mensaje ni conviertas cada respuesta en una descripcion."
+  );
 
   parts.push("Otros personajes relevantes para ti:");
   parts.push(

@@ -312,8 +312,8 @@ app.post("/api/chat", async (req, res) => {
         ? [
           {
             role: "system",
-            content: `Jugador actual: ${playerName || "Viajero"}. Historia / trasfondo: ${playerHistory || "No se proporciono historia; tratalo como recien llegado."
-              }. Si el jugador se llama Cristal, reconoce que es Cristal.`,
+            content: `Jugador actual: ${playerName || "Viajero"}. Historia / trasfondo y descripcion fisica: ${playerHistory || "No se proporciono historia; tratalo como recien llegado."
+              }. Si el jugador se llama Cristal, reconoce que es Cristal. Usa los detalles de apariencia, ropa, ojos, cabello, marcas, postura o aura cuando encajen naturalmente en la escena, sin mencionarlos en cada respuesta ni repetir siempre el mismo rasgo.`,
           },
         ]
         : [];
