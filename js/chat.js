@@ -544,7 +544,7 @@
 
   let gmSettings = {
     gmName: "...", // nombre visible del GM (default "...")
-    model: "llama-3.3-70b",
+    model: "deepseek-v4-flash",
     extraPrompt: "",
     avatarEmoji: "✒️",
     avatarImageDataUrl: "",
@@ -1128,36 +1128,53 @@ if (themeSelector) {
 }
 
 // Quita el nombre del personaje al principio del mensaje
-function sanitizePersonaReply(text, persona) {
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripLeadingSpeakerLabels(text, names) {
   if (!text || typeof text !== "string") return text || "";
 
-  let name =
-    persona === "gm"
-      ? getGMName()
-      : SYLVIE_NAME;
+  const cleanNames = [...new Set(
+    (names || [])
+      .map((name) => String(name || "").trim())
+      .filter(Boolean)
+  )];
+  if (cleanNames.length === 0) return text;
 
-  if (!name || !name.trim()) return text;
-
-  name = name.trim();
-
-  // Escapar el nombre para usarlo en RegExp
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-  const patterns = [
-    // **Nombre**:
-    new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:：\\-–—]\\s*`, "i"),
-    // Nombre:
-    new RegExp(`^\\s*${escaped}\\s*[:：\\-–—]\\s*`, "i"),
-    // Nombre al inicio seguido de espacio
-    new RegExp(`^\\s*${escaped}\\s+`, "i"),
-  ];
-
-  let result = text;
-  patterns.forEach((re) => {
-    result = result.replace(re, "");
+  const patterns = cleanNames.flatMap((name) => {
+    const escaped = escapeRegExp(name);
+    return [
+      new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:：\\-–—]\\s*`, "i"),
+      new RegExp(`^\\s*\\*\\*${escaped}\\s*[:：\\-–—]\\*\\*\\s*`, "i"),
+      new RegExp(`^\\s*${escaped}\\s*[:：\\-–—]\\s*`, "i"),
+    ];
   });
 
+  let result = text;
+  let changed = true;
+  let guard = 0;
+
+  while (changed && guard < 10) {
+    changed = false;
+    guard += 1;
+
+    for (const re of patterns) {
+      const next = result.replace(re, "");
+      if (next !== result) {
+        result = next;
+        changed = true;
+        break;
+      }
+    }
+  }
+
   return result.trimStart();
+}
+
+function sanitizePersonaReply(text, persona) {
+  const name = persona === "gm" ? getGMName() : SYLVIE_NAME;
+  return stripLeadingSpeakerLabels(text, [name]);
 }
 
 // Evita que una voz empiece con la etiqueta de la otra (GM vs Sylvie)
@@ -1171,19 +1188,7 @@ function dropOtherPersonaLabel(text, persona) {
 
   if (!otherName || !otherName.trim()) return text;
 
-  const escaped = otherName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const patterns = [
-    new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:\\-–—]\\s*`, "i"),
-    new RegExp(`^\\s*${escaped}\\s*[:\\-–—]\\s*`, "i"),
-    new RegExp(`^\\s*${escaped}\\s+`, "i"),
-  ];
-
-  let result = text;
-  patterns.forEach((re) => {
-    result = result.replace(re, "");
-  });
-
-  return result.trimStart();
+  return stripLeadingSpeakerLabels(text, [otherName]);
 }
 
 // Elimina etiquetas iniciales del jugador (o "Cristal") en las respuestas de IA
@@ -1194,21 +1199,7 @@ function dropPlayerLabel(text) {
   const names = ["cristal"];
   if (playerName) names.push(playerName.toLowerCase());
 
-  let result = text;
-  names.forEach((n) => {
-    if (!n) return;
-    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const patterns = [
-      new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:\\-–—]\\s*`, "i"),
-      new RegExp(`^\\s*${escaped}\\s*[:\\-–—]\\s*`, "i"),
-      new RegExp(`^\\s*${escaped}\\s+`, "i"),
-    ];
-    patterns.forEach((re) => {
-      result = result.replace(re, "");
-    });
-  });
-
-  return result.trimStart();
+  return stripLeadingSpeakerLabels(text, names);
 }
 
 // Determina qué voz (sylvie o gm) fue mencionada primero en el texto
@@ -1435,7 +1426,19 @@ function ensureNonSilentReply(text, persona) {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        messages = parsed;
+        messages = parsed.map((msg) => {
+          if ((msg?.role || "") !== "assistant") return msg;
+          return {
+            ...msg,
+            text: stripLeadingSpeakerLabels(msg.text, [
+              msg.author,
+              getGMName(),
+              SYLVIE_NAME,
+              player.name,
+              "Cristal",
+            ]),
+          };
+        });
         if (messages.length > 0) {
           messageIdCounter = messages[messages.length - 1].id + 1;
         }
@@ -1706,11 +1709,21 @@ function ensureNonSilentReply(text, persona) {
 
     const role =
       options.role || (author === player.name ? "user" : "assistant");
+    const normalizedText =
+      role === "assistant"
+        ? stripLeadingSpeakerLabels(text, [
+            author,
+            getGMName(),
+            SYLVIE_NAME,
+            player.name,
+            "Cristal",
+          ])
+        : text;
 
     messages.push({
       id: messageIdCounter++,
       author,
-      text,
+      text: normalizedText,
       time: timeString,
       role, // 'user' | 'assistant'
       edited: false,
@@ -1724,7 +1737,7 @@ function ensureNonSilentReply(text, persona) {
     if (options.broadcast === false || options.remote) return;
     sendWs({
       type: "chat",
-      message: { author, text, time: timeString, role },
+      message: { author, text: normalizedText, time: timeString, role },
     });
   }
 
@@ -1958,6 +1971,9 @@ if (editOverlay) {
     "No menciones que eres una IA ni hables de modelos; compórtate siempre como un humano real dentro del mundo."
   );
   parts.push(
+    `No empieces tus mensajes con "${gmName}:" ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`
+  );
+  parts.push(
     "No hables en nombre de otros presentes (jugador, Sylvie ni terceros) ni escribas sus dialogos completos. Solo narra lo que haces y dices, y lo que percibes de su exterior."
     );
     parts.push(
@@ -2030,7 +2046,7 @@ if (editOverlay) {
     `${SYLVIE_NAME} es la reina del Draw World JC-2: calida, juguetona, coqueta a ratos, sabia y protectora; muy respetuosa, servicial, educada y amable. Si hay otras personas (GM, otros del .env u otra IA) y Cristal le muestra carino, se vuelve mas timida y sutil; a solas con Cristal puede dejar salir todo su carino y atrevimiento.`
   );
   parts.push(
-    "Muy importante: no escribas tu propio nombre dentro del mensaje. No empieces con cosas como 'Frieren:' o '**Frieren**:'. Habla siempre en primera persona sin etiquetarte."
+    `Muy importante: no escribas tu propio nombre dentro del mensaje. No empieces con cosas como '${SYLVIE_NAME}:' o '**${SYLVIE_NAME}**:'. Habla siempre en primera persona sin etiquetarte.`
   );
   parts.push(
     "No digas que eres una IA ni hables de modelos; suena y actua como una persona real dentro del mundo."
@@ -2385,6 +2401,7 @@ if (editOverlay) {
           <label class="gm-field">
             <span>Modelo</span>
             <select id="gm-model-select">
+              <option value="deepseek-v4-flash">deepseek-v4-flash (DeepSeek V4 Flash)</option>
               <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
               <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
               <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>

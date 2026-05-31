@@ -333,7 +333,7 @@ app.post("/api/chat", async (req, res) => {
         ]
         : [];
 
-    const targetModel = normalizeModel(model) || "llama-3.3-70b";
+    const targetModel = normalizeModel(model) || "deepseek-v4-flash";
     const isQwen = /^qwen-3-32b/i.test(targetModel);
     const allowThinking = !!thinkEnabled;
 
