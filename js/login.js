@@ -60,6 +60,42 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentAvatarTransform = "";
 
   const cropState = { scale: 1, offsetX: 0, offsetY: 0 };
+  const AVATAR_MAX_SIZE = 900;
+  const AVATAR_JPEG_QUALITY = 0.82;
+
+  function normalizeName(value) {
+    return String(value || "").toLowerCase().trim();
+  }
+
+  function compressImageDataUrl(dataUrl, maxSize = AVATAR_MAX_SIZE, quality = AVATAR_JPEG_QUALITY) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        if (!width || !height) {
+          reject(new Error("invalid-image-size"));
+          return;
+        }
+
+        const scale = Math.min(1, maxSize / Math.max(width, height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("canvas-unavailable"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("image-load-failed"));
+      img.src = dataUrl;
+    });
+  }
 
   if (avatarPickBtn) {
     avatarPickBtn.addEventListener("click", () => avatarInput && avatarInput.click());
@@ -103,7 +139,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!gmAuthMode || !gmAuthPasswordInput || !pendingPlayer) return;
     const pwd = gmAuthPasswordInput.value.trim();
     if (!pwd) { if (gmAuthError) gmAuthError.textContent = "Ingresa una contraseña."; return; }
-    const lowerName = (pendingPlayer.name || "").toLowerCase().trim();
+    const lowerName = normalizeName(pendingPlayer.name);
+    if (gmAuthSubmitBtn) gmAuthSubmitBtn.disabled = true;
+    if (gmAuthError) gmAuthError.textContent = "";
     try {
       const res = await fetch(GM_AUTH_URL, {
         method: "POST",
@@ -120,6 +158,8 @@ document.addEventListener("DOMContentLoaded", () => {
       finalizePassportAndGoChat(pendingPlayer);
     } catch (_) {
       if (gmAuthError) gmAuthError.textContent = "No se pudo contactar con el servidor. Intenta de nuevo.";
+    } finally {
+      if (gmAuthSubmitBtn) gmAuthSubmitBtn.disabled = false;
     }
   }
 
@@ -170,8 +210,26 @@ document.addEventListener("DOMContentLoaded", () => {
     avatarInput.addEventListener("change", () => {
       const file = avatarInput.files[0];
       if (!file) return;
+      if (!file.type || !file.type.startsWith("image/")) {
+        avatarInput.value = "";
+        showPassportToast("Selecciona un archivo de imagen válido.", { type: "warning" });
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onload = (e) => openCropper(e.target.result);
+      reader.onload = async (e) => {
+        try {
+          const compressed = await compressImageDataUrl(e.target.result);
+          openCropper(compressed);
+        } catch (_) {
+          avatarInput.value = "";
+          showPassportToast("No se pudo procesar la imagen. Prueba con otra foto.", { type: "warning" });
+        }
+      };
+      reader.onerror = () => {
+        avatarInput.value = "";
+        showPassportToast("No se pudo leer la imagen seleccionada.", { type: "warning" });
+      };
       reader.readAsDataURL(file);
     });
   }
@@ -210,13 +268,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (cancelCropBtn && cropOverlay) {
-    cancelCropBtn.addEventListener("click", () => cropOverlay.classList.remove("open"));
+    cancelCropBtn.addEventListener("click", () => {
+      cropOverlay.classList.remove("open");
+      editingAvatarDataUrl = null;
+      if (avatarInput) avatarInput.value = "";
+    });
   }
 
   if (applyCropBtn && cropOverlay && cropImage) {
     applyCropBtn.addEventListener("click", () => {
       cropOverlay.classList.remove("open");
       setAvatarPreview(editingAvatarDataUrl, cropImage.style.transform || "");
+      editingAvatarDataUrl = null;
+      if (avatarInput) avatarInput.value = "";
     });
   }
 
@@ -244,12 +308,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const file = loadJsonInput.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
           if (data.name) nameInput.value = data.name;
           if (data.history) historyInput.value = data.history;
-          if (data.avatarDataUrl) setAvatarPreview(data.avatarDataUrl, data.avatarTransform || "");
+          if (data.avatarDataUrl) {
+            const compressedAvatar = await compressImageDataUrl(data.avatarDataUrl);
+            setAvatarPreview(compressedAvatar, data.avatarTransform || "");
+          }
           if (data.serial && serialSpan) { serialSpan.textContent = data.serial; localStorage.setItem("dwjc2_serial", data.serial); }
           showPassportToast("✅ Personaje cargado correctamente.", { type: "success" });
         } catch (_) {
@@ -261,7 +328,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function finalizePassportAndGoChat(player) {
-    localStorage.setItem("dwjc2_player", JSON.stringify(player));
+    try {
+      localStorage.setItem("dwjc2_player", JSON.stringify(player));
+      if (normalizeName(player?.name) !== "cristal") {
+        localStorage.removeItem("dwjc2_gm_flag");
+      }
+    } catch (_) {
+      showPassportToast("No se pudo guardar el pasaporte. Usa una imagen más ligera e inténtalo otra vez.", {
+        type: "warning",
+        duration: 6000,
+      });
+      return;
+    }
+
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Entregando pasaporte..."; }
     if (!passportEl) { window.location.href = "chat.html"; return; }
@@ -287,7 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       const serial = localStorage.getItem("dwjc2_serial") || null;
       const player = { name, history, avatarDataUrl, avatarTransform: currentAvatarTransform || null, serial, createdAt: new Date().toISOString() };
-      const lowerName = name.toLowerCase().trim();
+      const lowerName = normalizeName(name);
       if (lowerName === "cristal" || lowerName === "sylvie") {
         pendingPlayer = player;
         openGmAuthModal(lowerName);

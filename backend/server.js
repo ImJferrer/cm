@@ -2,8 +2,11 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config({ path: fileURLToPath(new URL("./.env", import.meta.url)) });
 
 const app = express();
 const server = http.createServer(app);
@@ -12,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-const GM_PASSWORD = process.env.GM_PASSWORD;
+const GM_PASSWORD = (process.env.GM_PASSWORD || "").trim();
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
 const CHAT_STATE_FILE = new URL("./data/chat-state.json", import.meta.url);
 
@@ -489,7 +492,10 @@ app.post("/api/gm-auth", (req, res) => {
 
   // Solo Cristal puede desbloquear poderes de GM
   if (lower === "cristal") {
-    if (password === GM_PASSWORD) {
+    if (!GM_PASSWORD) {
+      return res.status(503).json({ error: "Falta configurar GM_PASSWORD en el servidor." });
+    }
+    if (String(password).trim() === GM_PASSWORD) {
       return res.json({ ok: true, role: "gm" });
     }
     return res.status(401).json({ error: "Contrasena incorrecta." });
