@@ -544,7 +544,7 @@
 
   let gmSettings = {
     gmName: "...", // nombre visible del GM (default "...")
-    model: "deepseek-v4-flash",
+    model: "deepseek-v4-pro",
     extraPrompt: "",
     avatarEmoji: "✒️",
     avatarImageDataUrl: "",
@@ -2407,7 +2407,7 @@ if (editOverlay) {
           <label class="gm-field">
             <span>Modelo</span>
             <select id="gm-model-select">
-              <option value="deepseek-v4-flash">deepseek-v4-flash (DeepSeek V4 Flash)</option>
+              <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
               <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
               <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
               <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
