@@ -437,6 +437,11 @@ body.chat-page {
     justify-content: flex-end;
 }
 
+.chat-message.narrator {
+    justify-content: center;
+    margin: 0.45rem 0;
+}
+
 .chat-message-inner {
     display: flex;
     gap: 0.7rem;
@@ -447,6 +452,10 @@ body.chat-page {
 
 .chat-message.mine .chat-message-inner {
     flex-direction: row-reverse;
+}
+
+.chat-message.narrator .chat-message-inner {
+    max-width: min(640px, 100%);
 }
 
 /* Avatar en mensajes */
@@ -477,6 +486,10 @@ body.chat-page {
     background: radial-gradient(circle at 30% 20%, var(--accent), #f97316);
 }
 
+.chat-avatar.npc-ai-slot {
+    background: radial-gradient(circle at 30% 20%, #22c55e, #0f766e);
+}
+
 .chat-avatar.npc-luna {
     background: radial-gradient(circle at 30% 20%, #38bdf8, #0f766e);
 }
@@ -500,6 +513,20 @@ body.chat-page {
 .chat-message.mine .chat-bubble {
     background: var(--bg-bubble-me);
     color: #eef2ff;
+}
+
+.chat-message.narrator .chat-bubble {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid rgba(250, 204, 21, 0.35);
+    background: rgba(30, 41, 59, 0.86);
+    color: #f8fafc;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24);
+}
+
+.chat-message.narrator .chat-text {
+    font-style: italic;
+    text-align: center;
 }
 
 .chat-meta-line {
@@ -1005,6 +1032,34 @@ body.chat-page {
 
 .gm-danger-btn:hover {
     background: rgba(185, 28, 28, 0.95);
+}
+
+.gm-force-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+}
+
+.gm-primary-btn {
+    border: 1px solid rgba(56, 189, 248, 0.55);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(14, 165, 233, 0.28), rgba(15, 23, 42, 0.96));
+    color: #e0f2fe;
+    font-size: 0.76rem;
+    font-weight: 700;
+    min-height: 34px;
+    padding: 0.38rem 0.5rem;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gm-primary-btn:hover {
+    border-color: rgba(125, 211, 252, 0.9);
+    background: linear-gradient(180deg, rgba(14, 165, 233, 0.42), rgba(15, 23, 42, 0.98));
+}
+
+.gm-full-btn {
+    width: 100%;
 }
 
 .gm-small-hint {

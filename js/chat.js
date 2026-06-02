@@ -53,6 +53,29 @@
   const CHAT_VERSION_KEY = "dwjc2_chat_version";
   const GM_SETTINGS_KEY = "dwjc2_gm_settings";
   const SYLVIE_NAME = "Sylvie";
+  const AI_SLOT_KEYS = ["ai1", "ai2"];
+  const DEFAULT_AI_SLOTS = [
+    {
+      key: "ai1",
+      name: "Ana",
+      enabled: false,
+      visible: false,
+      moderationEnabled: true,
+      avatarEmoji: "🌙",
+      avatarImageDataUrl: "",
+      extraPrompt: "",
+    },
+    {
+      key: "ai2",
+      name: "IA 2",
+      enabled: false,
+      visible: false,
+      moderationEnabled: true,
+      avatarEmoji: "✨",
+      avatarImageDataUrl: "",
+      extraPrompt: "",
+    },
+  ];
   const AI_HISTORY_LIMIT = 80;
   const TYPING_MIN_DELAY_MS = 700;
   const SCROLL_BOTTOM_THRESHOLD = 96;
@@ -60,6 +83,12 @@
     gmName: "...",
     gmVisible: true,
     gmEnabled: false,
+    aiSlots: DEFAULT_AI_SLOTS.map((slot) => ({
+      key: slot.key,
+      name: slot.name,
+      visible: slot.visible,
+      enabled: slot.enabled,
+    })),
     sylvieVisible: true,
     sylvieEnabled: false,
   };
@@ -555,15 +584,17 @@
     gmCardAvatarDataUrl: "",
     gmRole: "random", // rol activo del GM (villano, heroe, random)
     gmEnabled: false, // GM Desactivado por defecto para que la IA responda a todos los jugadores
-    gmModerationEnabled: false, // revisar respuestas del GM
-    gmVisible: true, // mostrar GM en la lista de jugadores
+    gmModerationEnabled: true, // revisar respuestas del GM
+    gmVisible: false, // mostrar GM en la lista de jugadores
+
+    aiSlots: DEFAULT_AI_SLOTS.map((slot) => ({ ...slot })),
 
     sylvieEnabled: false, // Sylvie por defecto dormida / desconectada
-    sylvieModerationEnabled: false, // revisar respuestas de Sylvie
+    sylvieModerationEnabled: true, // revisar respuestas de Sylvie
     sylvieAvatarEmoji: "👑",
     sylvieAvatarImageDataUrl: "",
     sylvieExtraPrompt: "",
-    sylvieVisible: true, // mostrar Sylvie en la lista de jugadores
+    sylvieVisible: false, // mostrar Sylvie en la lista de jugadores
   };
 
 
@@ -574,6 +605,7 @@
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         gmSettings = { ...gmSettings, ...parsed };
+        gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
 
         // compat antigua: si tenía "moderationEnabled", úsalo como gmModerationEnabled
         if (
@@ -586,6 +618,64 @@
     } catch (err) {
       console.error("No se pudo leer GM settings:", err);
     }
+  }
+
+  function normalizeAISlots(rawSlots) {
+    const slots = Array.isArray(rawSlots) ? rawSlots : [];
+    return DEFAULT_AI_SLOTS.map((defaults, index) => ({
+      ...defaults,
+      ...(slots[index] && typeof slots[index] === "object" ? slots[index] : {}),
+      key: defaults.key,
+    }));
+  }
+
+  function getAISlots() {
+    gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+    return gmSettings.aiSlots;
+  }
+
+  function getAISlot(persona) {
+    const index = AI_SLOT_KEYS.indexOf(persona);
+    if (index < 0) return null;
+    return getAISlots()[index] || null;
+  }
+
+  function getAISlotName(persona) {
+    const slot = getAISlot(persona);
+    return (slot?.name || "").trim() || slot?.key?.toUpperCase() || "IA";
+  }
+
+  function getAllPersonaNames() {
+    return [
+      getGMName(),
+      ...getAISlots().map((slot) => slot.name),
+      SYLVIE_NAME,
+      player?.name,
+      "Cristal",
+      "Crista",
+    ].filter((name) => String(name || "").trim());
+  }
+
+  function getPersonaDisplayName(persona) {
+    if (persona === "gm") return getGMName();
+    if (persona === "sylvie") return SYLVIE_NAME;
+    return getAISlotName(persona);
+  }
+
+  function isPersonaEnabled(persona) {
+    if (persona === "gm") return !!gmSettings.gmEnabled;
+    if (persona === "sylvie") return !!gmSettings.sylvieEnabled;
+    return !!getAISlot(persona)?.enabled;
+  }
+
+  function isPersonaModerationEnabled(persona) {
+    if (persona === "gm") return !!gmSettings.gmModerationEnabled;
+    if (persona === "sylvie") return !!gmSettings.sylvieModerationEnabled;
+    return !!getAISlot(persona)?.moderationEnabled;
+  }
+
+  function getPersonaOrder() {
+    return ["gm", ...AI_SLOT_KEYS, "sylvie"];
   }
 
   function saveGMSettings() {
@@ -602,12 +692,24 @@
   }
 
   function normalizeSharedRosterState(raw = {}) {
+    const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
     return {
       gmName:
         (typeof raw.gmName === "string" && raw.gmName.trim()) ||
         DEFAULT_SHARED_ROSTER_STATE.gmName,
       gmVisible: raw.gmVisible !== false,
       gmEnabled: !!raw.gmEnabled,
+      aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
+        const slot = rawSlots[index] || {};
+        return {
+          key: defaults.key,
+          name:
+            (typeof slot.name === "string" && slot.name.trim()) ||
+            defaults.name,
+          visible: slot.visible === true,
+          enabled: !!slot.enabled,
+        };
+      }),
       sylvieVisible: raw.sylvieVisible !== false,
       sylvieEnabled: !!raw.sylvieEnabled,
     };
@@ -630,6 +732,12 @@
       gmName: getGMName(),
       gmVisible: gmSettings.gmVisible !== false,
       gmEnabled: !!gmSettings.gmEnabled,
+      aiSlots: getAISlots().map((slot) => ({
+        key: slot.key,
+        name: (slot.name || "").trim() || slot.key.toUpperCase(),
+        visible: !!slot.visible,
+        enabled: !!slot.enabled,
+      })),
       sylvieVisible: gmSettings.sylvieVisible !== false,
       sylvieEnabled: !!gmSettings.sylvieEnabled,
     });
@@ -1019,7 +1127,7 @@ if (themeSelector) {
     };
   }
 
-  // 3) Lista de personajes (jugador, GM, Sylvie)
+  // 3) Lista de personajes (jugador, GM, IAs, Sylvie)
   function renderPlayers() {
     if (!playersListEl) return;
     playersListEl.innerHTML = "";
@@ -1054,6 +1162,15 @@ if (themeSelector) {
         online: sharedRosterState.gmEnabled,
       });
     }
+    (sharedRosterState.aiSlots || []).forEach((slot) => {
+      if (!slot || slot.visible !== true) return;
+      npcs.push({
+        name: slot.name || "IA",
+        role: slot.enabled ? "IA conectada" : "IA desconectada",
+        isMe: false,
+        online: !!slot.enabled,
+      });
+    });
     if (sharedRosterState.sylvieVisible !== false) {
       npcs.push({
         name: SYLVIE_NAME,
@@ -1173,22 +1290,19 @@ function stripLeadingSpeakerLabels(text, names) {
 }
 
 function sanitizePersonaReply(text, persona) {
-  const name = persona === "gm" ? getGMName() : SYLVIE_NAME;
-  return stripLeadingSpeakerLabels(text, [name]);
+  return stripLeadingSpeakerLabels(text, [getPersonaDisplayName(persona)]);
 }
 
-// Evita que una voz empiece con la etiqueta de la otra (GM vs Sylvie)
+// Evita que una voz empiece con la etiqueta de otra persona
 function dropOtherPersonaLabel(text, persona) {
   if (!text || typeof text !== "string") return text || "";
 
-  const otherName =
-    persona === "gm"
-      ? SYLVIE_NAME
-      : getGMName();
+  const ownName = getPersonaDisplayName(persona);
+  const otherNames = getAllPersonaNames().filter(
+    (name) => String(name || "").trim().toLowerCase() !== String(ownName || "").trim().toLowerCase()
+  );
 
-  if (!otherName || !otherName.trim()) return text;
-
-  return stripLeadingSpeakerLabels(text, [otherName]);
+  return stripLeadingSpeakerLabels(text, otherNames);
 }
 
 // Elimina etiquetas iniciales del jugador (o "Cristal") en las respuestas de IA
@@ -1196,32 +1310,33 @@ function dropPlayerLabel(text) {
   if (!text || typeof text !== "string") return text || "";
 
   const playerName = (player.name || "").trim();
-  const names = ["cristal"];
+  const names = ["cristal", "crista"];
   if (playerName) names.push(playerName.toLowerCase());
 
   return stripLeadingSpeakerLabels(text, names);
 }
 
-// Determina qué voz (sylvie o gm) fue mencionada primero en el texto
+// Determina qué voz fue mencionada primero en el texto
 function whoIsMentionedFirst(text) {
   if (!text || typeof text !== "string") return null;
   const lower = text.toLowerCase();
-  const sylvieAliases = ["sylvie", "alteza", "majestad"];
-  const sylvieIndex = sylvieAliases
-    .map((alias) => lower.indexOf(alias))
-    .filter((i) => i >= 0)
-    .sort((a, b) => a - b)[0] ?? -1;
-  const gmName = (getGMName() || "").toLowerCase();
-  const gmIndex = gmName ? lower.indexOf(gmName) : -1;
+  const candidates = getPersonaOrder().map((persona) => {
+    const names =
+      persona === "sylvie"
+        ? [SYLVIE_NAME, "alteza", "majestad"]
+        : [getPersonaDisplayName(persona)];
+    const index = names
+      .map((name) => String(name || "").trim().toLowerCase())
+      .filter(Boolean)
+      .map((name) => lower.indexOf(name))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b)[0];
+    return index === undefined ? null : { persona, index };
+  }).filter(Boolean);
 
-  const sylvieFound = sylvieIndex >= 0;
-  const gmFound = gmIndex >= 0;
-
-  if (!sylvieFound && !gmFound) return null;
-  if (sylvieFound && !gmFound) return "sylvie";
-  if (gmFound && !sylvieFound) return "gm";
-
-  return sylvieIndex <= gmIndex ? "sylvie" : "gm";
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a.index - b.index);
+  return candidates[0].persona;
 }
 
 // Fuerza a Sylvie a dirigirse al jugador como "Amo" (solo usa "Jean" si realmente lo escribe en enfado)
@@ -1319,12 +1434,11 @@ function ensureNonSilentReply(text, persona) {
     while (aiReplyQueue.length > 0) {
       const job = aiReplyQueue.shift();
 
-      if (job.persona === "sylvie") {
-        const reply = await callPersona("sylvie");
-        // Después de que Sylvie contesta, miramos si “llama” al GM o a Cristal
-        handleSylvieTriggers(reply);
-      } else if (job.persona === "gm") {
-        await callPersona("gm");
+      if (getPersonaOrder().includes(job.persona)) {
+        const reply = await callPersona(job.persona);
+        if (job.persona === "sylvie") {
+          handleSylvieTriggers(reply);
+        }
       }
 
       // Pequeña pausa entre voces para que parezca conversación
@@ -1430,13 +1544,7 @@ function ensureNonSilentReply(text, persona) {
           if ((msg?.role || "") !== "assistant") return msg;
           return {
             ...msg,
-            text: stripLeadingSpeakerLabels(msg.text, [
-              msg.author,
-              getGMName(),
-              SYLVIE_NAME,
-              player.name,
-              "Cristal",
-            ]),
+            text: stripLeadingSpeakerLabels(msg.text, [msg.author, ...getAllPersonaNames()]),
           };
         });
         if (messages.length > 0) {
@@ -1578,6 +1686,12 @@ function ensureNonSilentReply(text, persona) {
       // 👑 Sylvie
       avatar.classList.add("npc-sylvie");
       customAvatarUrl = customAvatarUrl || gmSettings.sylvieAvatarImageDataUrl;
+    } else {
+      const aiSlot = getAISlots().find((slot) => (slot.name || "").trim() === author);
+      if (aiSlot) {
+        avatar.classList.add("npc-ai-slot");
+        customAvatarUrl = customAvatarUrl || aiSlot.avatarImageDataUrl;
+      }
     }
 
     if (customAvatarUrl) {
@@ -1590,7 +1704,12 @@ function ensureNonSilentReply(text, persona) {
     } else if (author === SYLVIE_NAME && gmSettings.sylvieAvatarEmoji && gmSettings.sylvieAvatarEmoji.trim()) {
       avatar.textContent = gmSettings.sylvieAvatarEmoji.trim();
     } else {
-      avatar.textContent = (author || "?")[0].toUpperCase();
+      const aiSlot = getAISlots().find((slot) => (slot.name || "").trim() === author);
+      if (aiSlot && aiSlot.avatarEmoji && aiSlot.avatarEmoji.trim()) {
+        avatar.textContent = aiSlot.avatarEmoji.trim();
+      } else {
+        avatar.textContent = (author || "?")[0].toUpperCase();
+      }
     }
 
     return avatar;
@@ -1644,11 +1763,12 @@ function ensureNonSilentReply(text, persona) {
       const wrapper = document.createElement("div");
       wrapper.classList.add("chat-message");
       if (msg.author === player.name) wrapper.classList.add("mine");
+      if (msg.role === "narrator") wrapper.classList.add("narrator");
 
       const inner = document.createElement("div");
       inner.className = "chat-message-inner";
 
-      const avatar = createAvatarElement(msg.author);
+      const avatar = msg.role === "narrator" ? null : createAvatarElement(msg.author);
 
       const bubble = document.createElement("div");
       bubble.className = "chat-bubble";
@@ -1664,7 +1784,9 @@ function ensureNonSilentReply(text, persona) {
       timeSpan.className = "chat-time";
       timeSpan.textContent = msg.time;
 
-      metaLine.appendChild(authorSpan);
+      if (msg.role !== "narrator") {
+        metaLine.appendChild(authorSpan);
+      }
       metaLine.appendChild(timeSpan);
 
       // 🔽 Submenú de edición eliminado
@@ -1674,7 +1796,9 @@ function ensureNonSilentReply(text, persona) {
       // ⬇️ Usamos el render de formato que ya tienes (cursiva, negrita, cita)
       textDiv.innerHTML = renderRichText(msg.text);
 
-      bubble.appendChild(metaLine);
+      if (msg.role !== "narrator") {
+        bubble.appendChild(metaLine);
+      }
       bubble.appendChild(textDiv);
 
       if (msg.edited) {
@@ -1684,7 +1808,7 @@ function ensureNonSilentReply(text, persona) {
         bubble.appendChild(editedTag);
       }
 
-      inner.appendChild(avatar);
+      if (avatar) inner.appendChild(avatar);
       inner.appendChild(bubble);
       wrapper.appendChild(inner);
 
@@ -1711,13 +1835,7 @@ function ensureNonSilentReply(text, persona) {
       options.role || (author === player.name ? "user" : "assistant");
     const normalizedText =
       role === "assistant"
-        ? stripLeadingSpeakerLabels(text, [
-            author,
-            getGMName(),
-            SYLVIE_NAME,
-            player.name,
-            "Cristal",
-          ])
+        ? stripLeadingSpeakerLabels(text, [author, ...getAllPersonaNames()])
         : text;
 
     messages.push({
@@ -1871,6 +1989,9 @@ function ensureNonSilentReply(text, persona) {
     if (editOverlay.dataset.order) {
       delete editOverlay.dataset.order;
     }
+    if (editOverlay.dataset.persona) {
+      delete editOverlay.dataset.persona;
+    }
     if (editDualWrapper) editDualWrapper.classList.remove("open");
     if (editSingleWrapper) editSingleWrapper.style.display = "block";
   }
@@ -1928,6 +2049,10 @@ function ensureNonSilentReply(text, persona) {
       } else if (mode === "moderation-sylvie") {
         addMessage(newText, SYLVIE_NAME, { role: "assistant" });
         closeEditModal();
+      } else if (mode.startsWith("moderation-")) {
+        const persona = editOverlay.dataset.persona || mode.replace(/^moderation-/, "");
+        addMessage(newText, getPersonaDisplayName(persona), { role: "assistant" });
+        closeEditModal();
       }
     });
   }
@@ -1937,7 +2062,44 @@ if (editOverlay) {
     });
   }
 
-  // 6) System prompts: GM y Sylvie
+  // 6) System prompts: GM, IAs y Sylvie
+
+  function buildPersonaRosterLines(currentPersona) {
+    return getPersonaOrder()
+      .map((persona) => {
+        const name = getPersonaDisplayName(persona);
+        if (!name) return null;
+        if (persona === currentPersona) {
+          return `- ${name}: eres tu. Solo escribes tus propias acciones, pensamientos y dialogo.`;
+        }
+        if (persona === "gm") {
+          return `- ${name}: GM/Narrador, otra voz separada. No lo suplantes.`;
+        }
+        if (persona === "sylvie") {
+          return `- ${name}: reina del Draw World JC-2, otra voz separada. No la suplantes.`;
+        }
+        return `- ${name}: IA/personaje independiente de la sala. No escribas sus dialogos ni respondas por esa voz.`;
+      })
+      .filter(Boolean);
+  }
+
+  function pushIdentitySeparationRules(parts, currentPersona) {
+    const currentName = getPersonaDisplayName(currentPersona);
+    const otherNames = getAllPersonaNames().filter(
+      (name) => String(name || "").trim().toLowerCase() !== String(currentName || "").trim().toLowerCase()
+    );
+    parts.push(
+      `Identidad fija: eres ${currentName}. No eres ${otherNames.join(", ") || "ninguna otra persona"}.`
+    );
+    parts.push(
+      "Cada mensaje debe ser una sola voz. No escribas guiones con varios personajes, no abras lineas con nombres como 'Cristal:', 'GM:', 'Sylvie:' ni con el nombre de otra IA."
+    );
+    parts.push(
+      "Si otro personaje hizo o dijo algo, puedes reaccionar o resumirlo desde tu punto de vista, pero no escribir sus palabras exactas como si fueras esa persona."
+    );
+    parts.push("Personas relevantes en esta sala:");
+    buildPersonaRosterLines(currentPersona).forEach((line) => parts.push(line));
+  }
 
   function buildSystemLoreMessageForGM() {
     const parts = [];
@@ -1993,13 +2155,7 @@ if (editOverlay) {
       parts.push(gmSettings.gmCardPrompt);
     }
 
-    parts.push("Personajes relevantes en esta sala:");
-    parts.push(
-      `- ${gmName}: narrador/a del Mundo de Cristal. Crea y describe el entorno, controla el tono general de la historia.`
-    );
-    parts.push(
-      `- ${SYLVIE_NAME}: reina del Draw World JC-2. Elegante, poderosa y algo traviesa; puede intervenir con comentarios cercanos y cargados de personalidad.`
-    );
+    pushIdentitySeparationRules(parts, "gm");
     parts.push(
       `No suplantes la voz de ${SYLVIE_NAME}; ella responde en sus propios turnos.`
     );
@@ -2107,10 +2263,7 @@ if (editOverlay) {
     "La historia del jugador tambien contiene su apariencia y presencia: ropa, colores, ojos, cabello, marcas, postura, aura o estilo. Puedes notar esos detalles de vez en cuando cuando sea emocionalmente o visualmente natural, como al mirarlo, acercarte, reconocerlo o reaccionar a su estado. No lo fuerces en cada mensaje ni conviertas cada respuesta en una descripcion."
   );
 
-  parts.push("Otros personajes relevantes para ti:");
-  parts.push(
-    `- ${gmName}: narrador/a del Mundo de Cristal. Puedes hacer comentarios complices sobre sus decisiones, pero sin hablar por el.`
-  );
+  pushIdentitySeparationRules(parts, "sylvie");
 
   if (
     gmSettings.sylvieExtraPrompt &&
@@ -2130,14 +2283,57 @@ if (editOverlay) {
   };
 }
 
+ function buildSystemLoreMessageForAISlot(persona) {
+  const slot = getAISlot(persona);
+  const displayName = getPersonaDisplayName(persona);
+  const parts = [];
+  const playerName = player.name || "Viajero";
+  const playerHistory =
+    player.history && player.history.trim().length > 0
+      ? player.history.trim()
+      : "No hay historia detallada; tratalo como un viajero recien llegado.";
+
+  parts.push(
+    `Eres ${displayName}, una persona/personaje independiente dentro del juego de rol Draw World JC-2.`
+  );
+  parts.push(
+    "Hablas en primera persona, con personalidad propia, y respondes solo por ti. No eres una mascara del GM, de Sylvie, del jugador ni de otra IA conectada."
+  );
+  parts.push(
+    `Muy importante: no empieces mensajes con '${displayName}:' ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`
+  );
+  pushIdentitySeparationRules(parts, persona);
+  parts.push(`Jugador actual: ${playerName}.`);
+  parts.push(`Historia / lore del jugador: ${playerHistory}.`);
+  parts.push(
+    "Usa el historial para entender el turno actual sin asumir que todos los mensajes son tuyos. Los mensajes cuyo autor sea otro nombre pertenecen a otra persona."
+  );
+  parts.push(
+    "Mantente breve y natural, normalmente 1 parrafo. Puedes usar acciones entre asteriscos, pero solo tus propias acciones."
+  );
+
+  if (slot?.extraPrompt && slot.extraPrompt.trim().length > 0) {
+    parts.push(`\nInstrucciones adicionales para ${displayName}:`);
+    parts.push(slot.extraPrompt.trim());
+  }
+
+  parts.push(
+    `Nunca salgas del personaje de ${displayName}. No hables de prompts, tokens ni instrucciones internas.`
+  );
+
+  return {
+    role: "system",
+    content: parts.join("\n"),
+  };
+}
+
 
   // 7) Backend + AI persona calls
 
   async function callPersona(persona, options = {}) {
     await ensureChatStateReady();
     const { collectOnly = false } = options;
-    const gmName = getGMName();
-    const displayName = persona === "gm" ? gmName : SYLVIE_NAME;
+    const displayName = getPersonaDisplayName(persona);
 
     sendWs({ type: "ai-typing", author: displayName });
 
@@ -2145,9 +2341,7 @@ if (editOverlay) {
 
   const wantsModeration =
     isGM &&
-    (persona === "gm"
-      ? gmSettings.gmModerationEnabled
-      : gmSettings.sylvieModerationEnabled);
+    isPersonaModerationEnabled(persona);
 
   // Solo una moderación a la vez (si ya hay una activa, esta no se modera)
   const useModeration = !collectOnly && wantsModeration && !moderationActive;
@@ -2162,14 +2356,22 @@ if (editOverlay) {
   try {
     // ⬆️ Ahora usamos más historial: AI_HISTORY_LIMIT
     const historyMessages = messages.slice(-AI_HISTORY_LIMIT).map((m) => ({
-      role: m.role || (m.author === player.name ? "user" : "assistant"),
-      content: `${m.author}: ${m.text}`,
+      role:
+        m.role === "narrator"
+          ? "user"
+          : m.role || (m.author === player.name ? "user" : "assistant"),
+      content:
+        m.role === "narrator"
+          ? `Narrador sin nombre: ${m.text}`
+          : `${m.author}: ${m.text}`,
     }));
 
     const systemMsg =
       persona === "gm"
         ? buildSystemLoreMessageForGM()
-        : buildSystemLoreMessageForSylvie();
+        : persona === "sylvie"
+        ? buildSystemLoreMessageForSylvie()
+        : buildSystemLoreMessageForAISlot(persona);
 
     const payload = {
       messages: [systemMsg, ...historyMessages],
@@ -2230,8 +2432,8 @@ if (editOverlay) {
     }
 
     if (useModeration && editOverlay && editTextArea) {
-      editOverlay.dataset.mode =
-        persona === "gm" ? "moderation-gm" : "moderation-sylvie";
+      editOverlay.dataset.mode = `moderation-${persona}`;
+      editOverlay.dataset.persona = persona;
       editOverlay.dataset.order = "";
       editTextArea.value = stripThinkBlocksAlways(replyNoThinkAlways);
       if (editSingleWrapper) editSingleWrapper.style.display = "block";
@@ -2260,7 +2462,7 @@ if (editOverlay) {
       { role: "assistant", broadcast: false }
     );
     return null;
-  } finally {
+    } finally {
       if (!moderationActive) {
         hideTyping(displayName);
       }
@@ -2285,16 +2487,15 @@ if (editOverlay) {
     scrollChatToBottom({ smooth: false, force: true });
 
     const lead = whoIsMentionedFirst(text);
-    const order =
-      lead === "sylvie"
-        ? ["sylvie", "gm"]
-        : lead === "gm"
-        ? ["gm", "sylvie"]
-        : ["sylvie", "gm"];
+    const baseOrder = getPersonaOrder();
+    const order = lead
+      ? [lead, ...baseOrder.filter((persona) => persona !== lead)]
+      : baseOrder;
 
     const dualModerationActive =
       gmSettings.gmEnabled &&
       gmSettings.sylvieEnabled &&
+      !getAISlots().some((slot) => slot.enabled) &&
       gmSettings.gmModerationEnabled &&
       gmSettings.sylvieModerationEnabled;
 
@@ -2305,10 +2506,8 @@ if (editOverlay) {
 
     // Flujo normal
     order.forEach((persona) => {
-      if (persona === "sylvie" && gmSettings.sylvieEnabled) {
-        enqueuePersonaReply("sylvie");
-      } else if (persona === "gm" && gmSettings.gmEnabled) {
-        enqueuePersonaReply("gm");
+      if (isPersonaEnabled(persona)) {
+        enqueuePersonaReply(persona);
       }
     });
   }
@@ -2372,7 +2571,16 @@ if (editOverlay) {
         <h3>Panel GM</h3>
 
         <section class="gm-section">
-          <section class="gm-section">
+          <h4>Forzar respuesta</h4>
+          <div class="gm-force-grid">
+            <button id="gm-force-reply" type="button" class="gm-primary-btn">GM</button>
+            <button id="ai1-force-reply" type="button" class="gm-primary-btn">IA 1</button>
+            <button id="ai2-force-reply" type="button" class="gm-primary-btn">IA 2</button>
+            <button id="sylvie-force-reply" type="button" class="gm-primary-btn">Sylvie</button>
+          </div>
+        </section>
+
+        <section class="gm-section">
           <h4>Sesión / Mantenimiento</h4>
           <button id="gm-reset-chat" type="button" class="gm-danger-btn">
             🧹 Reiniciar chat completo (para todos)
@@ -2387,6 +2595,8 @@ if (editOverlay) {
             Reiniciar borra el historial para todos. Expulsar devuelve a todos al login.
           </p>
         </section>
+
+        <section class="gm-section">
           <h4>GM principal</h4>
 
           <label class="gm-checkbox">
@@ -2428,11 +2638,6 @@ if (editOverlay) {
             <span>Permitir modo think del modelo (por defecto desactivado)</span>
           </label>
 
-          <div class="gm-buttons-row">
-            <button id="gm-force-reply" type="button" class="gm-primary-btn">Forzar respuesta del GM</button>
-            <button id="sylvie-force-reply" type="button" class="gm-primary-btn">Forzar respuesta de Sylvie</button>
-          </div>
-
           <label class="gm-field">
             <span>Rol del GM</span>
             <select id="gm-role-select">
@@ -2473,6 +2678,81 @@ if (editOverlay) {
             <input id="gm-moderation-toggle" type="checkbox" />
             <span>Revisar y aprobar respuestas del GM</span>
           </label>
+        </section>
+
+        <section class="gm-section gm-ai-slot" data-ai-slot="ai1">
+          <h4>IA Slot 1</h4>
+          <label class="gm-checkbox">
+            <input id="ai1-enabled-toggle" type="checkbox" />
+            <span>Activar respuestas de IA 1</span>
+          </label>
+          <label class="gm-checkbox">
+            <input id="ai1-visible-toggle" type="checkbox" />
+            <span>Mostrar IA 1 en lista de jugadores</span>
+          </label>
+          <label class="gm-checkbox">
+            <input id="ai1-moderation-toggle" type="checkbox" />
+            <span>Revisar y aprobar respuestas de IA 1</span>
+          </label>
+          <label class="gm-field">
+            <span>Nombre visible de IA 1</span>
+            <input id="ai1-name-input" type="text" placeholder="Ana" />
+          </label>
+          <label class="gm-field">
+            <span>Emoji / Avatar de IA 1</span>
+            <input id="ai1-avatar-emoji" type="text" maxlength="4" />
+          </label>
+          <label class="gm-field">
+            <span>Imagen de perfil de IA 1</span>
+            <input id="ai1-avatar-image" type="file" accept="image/*" />
+          </label>
+          <label class="gm-field">
+            <span>Prompt extra de IA 1</span>
+            <textarea id="ai1-extra-prompt" rows="3" placeholder="Personalidad, tono, límites, relación con la sala..."></textarea>
+          </label>
+        </section>
+
+        <section class="gm-section gm-ai-slot" data-ai-slot="ai2">
+          <h4>IA Slot 2</h4>
+          <label class="gm-checkbox">
+            <input id="ai2-enabled-toggle" type="checkbox" />
+            <span>Activar respuestas de IA 2</span>
+          </label>
+          <label class="gm-checkbox">
+            <input id="ai2-visible-toggle" type="checkbox" />
+            <span>Mostrar IA 2 en lista de jugadores</span>
+          </label>
+          <label class="gm-checkbox">
+            <input id="ai2-moderation-toggle" type="checkbox" />
+            <span>Revisar y aprobar respuestas de IA 2</span>
+          </label>
+          <label class="gm-field">
+            <span>Nombre visible de IA 2</span>
+            <input id="ai2-name-input" type="text" placeholder="IA 2" />
+          </label>
+          <label class="gm-field">
+            <span>Emoji / Avatar de IA 2</span>
+            <input id="ai2-avatar-emoji" type="text" maxlength="4" />
+          </label>
+          <label class="gm-field">
+            <span>Imagen de perfil de IA 2</span>
+            <input id="ai2-avatar-image" type="file" accept="image/*" />
+          </label>
+          <label class="gm-field">
+            <span>Prompt extra de IA 2</span>
+            <textarea id="ai2-extra-prompt" rows="3" placeholder="Personalidad, tono, límites, relación con la sala..."></textarea>
+          </label>
+        </section>
+
+        <section class="gm-section">
+          <h4>Narrador sin nombre</h4>
+          <label class="gm-field">
+            <span>Mensaje del narrador</span>
+            <textarea id="gm-narrator-message" rows="3" placeholder="Mensaje ambiental sin autor visible..."></textarea>
+          </label>
+          <button id="gm-send-narrator" type="button" class="gm-primary-btn gm-full-btn">
+            Enviar mensaje del narrador
+          </button>
         </section>
 
         <section class="gm-section">
@@ -2524,6 +2804,8 @@ if (editOverlay) {
     const stripThinkToggle = panel.querySelector("#gm-strip-think-toggle");
     const thinkToggle = panel.querySelector("#gm-think-toggle");
     const gmForceBtn = panel.querySelector("#gm-force-reply");
+    const ai1ForceBtn = panel.querySelector("#ai1-force-reply");
+    const ai2ForceBtn = panel.querySelector("#ai2-force-reply");
     const sylvieForceBtn = panel.querySelector("#sylvie-force-reply");
     const gmRoleSelect = panel.querySelector("#gm-role-select");
     const avatarEmojiInput = panel.querySelector("#gm-avatar-emoji");
@@ -2542,6 +2824,20 @@ if (editOverlay) {
     const sylvieEmojiInput = panel.querySelector("#sylvie-avatar-emoji");
     const sylvieImageInput = panel.querySelector("#sylvie-avatar-image");
     const sylvieExtraPromptArea = panel.querySelector("#sylvie-extra-prompt");
+    const narratorMessageArea = panel.querySelector("#gm-narrator-message");
+    const narratorSendBtn = panel.querySelector("#gm-send-narrator");
+    const aiControls = AI_SLOT_KEYS.map((key, index) => ({
+      key,
+      slot: getAISlots()[index],
+      forceBtn: key === "ai1" ? ai1ForceBtn : ai2ForceBtn,
+      enabledToggle: panel.querySelector(`#${key}-enabled-toggle`),
+      visibleToggle: panel.querySelector(`#${key}-visible-toggle`),
+      moderationToggle: panel.querySelector(`#${key}-moderation-toggle`),
+      nameInput: panel.querySelector(`#${key}-name-input`),
+      emojiInput: panel.querySelector(`#${key}-avatar-emoji`),
+      imageInput: panel.querySelector(`#${key}-avatar-image`),
+      extraPromptArea: panel.querySelector(`#${key}-extra-prompt`),
+    }));
 
     // Inicializar valores desde gmSettings
     if (gmEnabledToggle) {
@@ -2571,6 +2867,9 @@ if (editOverlay) {
     if (sylvieForceBtn) {
       sylvieForceBtn.disabled = false;
     }
+    aiControls.forEach(({ forceBtn }) => {
+      if (forceBtn) forceBtn.disabled = false;
+    });
     if (avatarEmojiInput) {
       avatarEmojiInput.value = gmSettings.avatarEmoji || "";
     }
@@ -2596,6 +2895,16 @@ if (editOverlay) {
     if (sylvieExtraPromptArea) {
       sylvieExtraPromptArea.value = gmSettings.sylvieExtraPrompt || "";
     }
+    aiControls.forEach((controls) => {
+      const slot = controls.slot;
+      if (!slot) return;
+      if (controls.enabledToggle) controls.enabledToggle.checked = !!slot.enabled;
+      if (controls.visibleToggle) controls.visibleToggle.checked = !!slot.visible;
+      if (controls.moderationToggle) controls.moderationToggle.checked = !!slot.moderationEnabled;
+      if (controls.nameInput) controls.nameInput.value = slot.name || "";
+      if (controls.emojiInput) controls.emojiInput.value = slot.avatarEmoji || "";
+      if (controls.extraPromptArea) controls.extraPromptArea.value = slot.extraPrompt || "";
+    });
     const renderCardStatus = () => {
       if (!gmCardStatus) return;
       if (gmSettings.gmCardName) {
@@ -2719,6 +3028,97 @@ if (editOverlay) {
     if (sylvieForceBtn) {
       sylvieForceBtn.addEventListener("click", () => {
         enqueuePersonaReply("sylvie");
+      });
+    }
+
+    aiControls.forEach((controls) => {
+      const slot = controls.slot;
+      if (!slot) return;
+
+      if (controls.forceBtn) {
+        controls.forceBtn.addEventListener("click", () => {
+          enqueuePersonaReply(controls.key);
+        });
+      }
+
+      if (controls.enabledToggle) {
+        controls.enabledToggle.addEventListener("change", () => {
+          slot.enabled = controls.enabledToggle.checked;
+          saveGMSettings();
+          renderPlayers();
+          broadcastSharedRosterState();
+        });
+      }
+
+      if (controls.visibleToggle) {
+        controls.visibleToggle.addEventListener("change", () => {
+          slot.visible = controls.visibleToggle.checked;
+          saveGMSettings();
+          renderPlayers();
+          broadcastSharedRosterState();
+        });
+      }
+
+      if (controls.moderationToggle) {
+        controls.moderationToggle.addEventListener("change", () => {
+          slot.moderationEnabled = controls.moderationToggle.checked;
+          saveGMSettings();
+        });
+      }
+
+      if (controls.nameInput) {
+        controls.nameInput.addEventListener("input", () => {
+          slot.name = controls.nameInput.value || slot.key.toUpperCase();
+          saveGMSettings();
+          renderPlayers();
+          broadcastSharedRosterState();
+        });
+      }
+
+      if (controls.emojiInput) {
+        controls.emojiInput.addEventListener("input", () => {
+          slot.avatarEmoji = controls.emojiInput.value || "";
+          saveGMSettings();
+        });
+      }
+
+      if (controls.imageInput) {
+        controls.imageInput.addEventListener("change", () => {
+          const file = controls.imageInput.files && controls.imageInput.files[0];
+          const slotName = (slot.name || "").trim() || slot.key.toUpperCase();
+          if (!file) {
+            slot.avatarImageDataUrl = "";
+            saveGMSettings();
+            sendWs({ type: "avatar_update", name: slotName, avatar: "" });
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            slot.avatarImageDataUrl = e.target.result;
+            saveGMSettings();
+            sendWs({ type: "avatar_update", name: slotName, avatar: e.target.result });
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      if (controls.extraPromptArea) {
+        controls.extraPromptArea.addEventListener("input", () => {
+          slot.extraPrompt = controls.extraPromptArea.value;
+          saveGMSettings();
+        });
+      }
+    });
+
+    if (narratorSendBtn && narratorMessageArea) {
+      narratorSendBtn.addEventListener("click", () => {
+        const text = narratorMessageArea.value.trim();
+        if (!text) {
+          showToast("El mensaje del narrador no puede estar vacío.", { type: "warning", duration: 3000 });
+          return;
+        }
+        addMessage(text, "", { role: "narrator" });
+        narratorMessageArea.value = "";
       });
     }
 
