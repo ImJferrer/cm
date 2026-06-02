@@ -58,21 +58,29 @@
     {
       key: "ai1",
       name: "Ana",
+      model: "",
       enabled: false,
       visible: false,
       moderationEnabled: true,
       avatarEmoji: "🌙",
       avatarImageDataUrl: "",
+      cardName: "",
+      cardPrompt: "",
+      cardAvatarDataUrl: "",
       extraPrompt: "",
     },
     {
       key: "ai2",
       name: "IA 2",
+      model: "",
       enabled: false,
       visible: false,
       moderationEnabled: true,
       avatarEmoji: "✨",
       avatarImageDataUrl: "",
+      cardName: "",
+      cardPrompt: "",
+      cardAvatarDataUrl: "",
       extraPrompt: "",
     },
   ];
@@ -642,7 +650,18 @@
 
   function getAISlotName(persona) {
     const slot = getAISlot(persona);
-    return (slot?.name || "").trim() || slot?.key?.toUpperCase() || "IA";
+    return (
+      (slot?.name || "").trim() ||
+      (slot?.cardName || "").trim() ||
+      slot?.key?.toUpperCase() ||
+      "IA"
+    );
+  }
+
+  function getPersonaModel(persona) {
+    if (persona === "gm" || persona === "sylvie") return gmSettings.model;
+    const slot = getAISlot(persona);
+    return (slot?.model || "").trim() || gmSettings.model;
   }
 
   function getAllPersonaNames() {
@@ -660,6 +679,17 @@
     if (persona === "gm") return getGMName();
     if (persona === "sylvie") return SYLVIE_NAME;
     return getAISlotName(persona);
+  }
+
+  function getPersonaByAuthor(author) {
+    const normalized = String(author || "").trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === String(getGMName() || "").trim().toLowerCase()) return "gm";
+    if (normalized === SYLVIE_NAME.toLowerCase()) return "sylvie";
+    const slotKey = AI_SLOT_KEYS.find(
+      (key) => String(getAISlotName(key) || "").trim().toLowerCase() === normalized
+    );
+    return slotKey || null;
   }
 
   function isPersonaEnabled(persona) {
@@ -1084,7 +1114,7 @@ if (themeSelector) {
     });
   }
 
-  async function loadCharacterCardFromFile(file) {
+  async function readCharacterCardFromFile(file) {
     const buffer = await file.arrayBuffer();
     let cardData = null;
 
@@ -1111,20 +1141,39 @@ if (themeSelector) {
     const promptFromCard = buildCardPrompt(cardData);
     const dataUrl = await fileToDataURL(file);
 
-    gmSettings.gmCardName = cardData.name || "";
-    gmSettings.gmCardPrompt = promptFromCard;
-    gmSettings.gmCardAvatarDataUrl = dataUrl;
-
-    // Actualizar nombre y avatar visibles del GM para usar la card
-    if (cardData.name) {
-      gmSettings.gmName = cardData.name;
-    }
-    gmSettings.avatarImageDataUrl = dataUrl;
-
     return {
       cardName: cardData.name || "",
       prompt: promptFromCard,
+      avatarDataUrl: dataUrl,
     };
+  }
+
+  async function loadCharacterCardFromFile(file) {
+    const result = await readCharacterCardFromFile(file);
+
+    gmSettings.gmCardName = result.cardName || "";
+    gmSettings.gmCardPrompt = result.prompt;
+    gmSettings.gmCardAvatarDataUrl = result.avatarDataUrl;
+
+    // Actualizar nombre y avatar visibles del GM para usar la card
+    if (result.cardName) {
+      gmSettings.gmName = result.cardName;
+    }
+    gmSettings.avatarImageDataUrl = result.avatarDataUrl;
+
+    return result;
+  }
+
+  async function loadCharacterCardIntoAISlot(file, slot) {
+    const result = await readCharacterCardFromFile(file);
+    slot.cardName = result.cardName || "";
+    slot.cardPrompt = result.prompt;
+    slot.cardAvatarDataUrl = result.avatarDataUrl;
+    if (result.cardName) {
+      slot.name = result.cardName;
+    }
+    slot.avatarImageDataUrl = result.avatarDataUrl;
+    return result;
   }
 
   // 3) Lista de personajes (jugador, GM, IAs, Sylvie)
@@ -1305,6 +1354,26 @@ function dropOtherPersonaLabel(text, persona) {
   return stripLeadingSpeakerLabels(text, otherNames);
 }
 
+// Si el modelo intenta continuar con otra voz en formato guion ("Monika:", "Aoi:", etc.),
+// conserva solo la parte de la persona actual.
+function dropForeignSpeakerSections(text, persona) {
+  if (!text || typeof text !== "string") return text || "";
+
+  const ownName = String(getPersonaDisplayName(persona) || "").trim().toLowerCase();
+  const speakerBlockRe =
+    /(?:^|\n+)\s*(?:\*\*)?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][\wÁÉÍÓÚÜÑáéíóúüñ .'-]{1,40})(?:\*\*)?\s*[:：]\s*/g;
+
+  let match;
+  while ((match = speakerBlockRe.exec(text)) !== null) {
+    const label = String(match[1] || "").trim().toLowerCase();
+    if (!label || label === ownName) continue;
+    const cutIndex = match.index === 0 ? 0 : match.index;
+    return text.slice(0, cutIndex).trim();
+  }
+
+  return text;
+}
+
 // Elimina etiquetas iniciales del jugador (o "Cristal") en las respuestas de IA
 function dropPlayerLabel(text) {
   if (!text || typeof text !== "string") return text || "";
@@ -1314,6 +1383,18 @@ function dropPlayerLabel(text) {
   if (playerName) names.push(playerName.toLowerCase());
 
   return stripLeadingSpeakerLabels(text, names);
+}
+
+function cleanAssistantTextForPersona(text, persona) {
+  let result = stripThinkBlocksAlways(text || "");
+  result = sanitizePersonaReply(result, persona);
+  result = dropOtherPersonaLabel(result, persona);
+  result = dropPlayerLabel(result);
+  result = dropForeignSpeakerSections(result, persona);
+  if (persona === "sylvie") {
+    result = enforceSylvieAddress(result);
+  }
+  return ensureNaturalEnding(ensureNonSilentReply(result, persona));
 }
 
 // Determina qué voz fue mencionada primero en el texto
@@ -1833,9 +1914,12 @@ function ensureNonSilentReply(text, persona) {
 
     const role =
       options.role || (author === player.name ? "user" : "assistant");
+    const personaForAuthor = role === "assistant" ? getPersonaByAuthor(author) : null;
     const normalizedText =
       role === "assistant"
-        ? stripLeadingSpeakerLabels(text, [author, ...getAllPersonaNames()])
+        ? personaForAuthor
+          ? cleanAssistantTextForPersona(text, personaForAuthor)
+          : stripLeadingSpeakerLabels(text, [author, ...getAllPersonaNames()])
         : text;
 
     messages.push({
@@ -2097,6 +2181,9 @@ if (editOverlay) {
     parts.push(
       "Si otro personaje hizo o dijo algo, puedes reaccionar o resumirlo desde tu punto de vista, pero no escribir sus palabras exactas como si fueras esa persona."
     );
+    parts.push(
+      "Cuando aparezca un nombre nuevo en la escena, no lo conviertas en una segunda voz dentro de tu mensaje. No agregues bloques como 'Monika:' ni cualquier otro nombre seguido de dos puntos."
+    );
     parts.push("Personas relevantes en esta sala:");
     buildPersonaRosterLines(currentPersona).forEach((line) => parts.push(line));
   }
@@ -2302,11 +2389,21 @@ if (editOverlay) {
   parts.push(
     `Muy importante: no empieces mensajes con '${displayName}:' ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`
   );
+  if (slot?.cardName) {
+    parts.push(`Personaje activo importado desde Character Card: ${slot.cardName}.`);
+  }
+  if (slot?.cardPrompt) {
+    parts.push("Perfil proveniente de la Character Card:");
+    parts.push(slot.cardPrompt);
+  }
   pushIdentitySeparationRules(parts, persona);
   parts.push(`Jugador actual: ${playerName}.`);
   parts.push(`Historia / lore del jugador: ${playerHistory}.`);
   parts.push(
     "Usa el historial para entender el turno actual sin asumir que todos los mensajes son tuyos. Los mensajes cuyo autor sea otro nombre pertenecen a otra persona."
+  );
+  parts.push(
+    "Si el jugador invoca, nombra o hace aparecer a otro personaje, no interpretes a ese personaje ni escribas su entrada o dialogo. Reacciona solo como tu personaje y deja que el GM u otro slot controle esa voz."
   );
   parts.push(
     "Mantente breve y natural, normalmente 1 parrafo. Puedes usar acciones entre asteriscos, pero solo tus propias acciones."
@@ -2375,7 +2472,7 @@ if (editOverlay) {
 
     const payload = {
       messages: [systemMsg, ...historyMessages],
-      model: sanitizeModelForApi(gmSettings.model),
+      model: sanitizeModelForApi(getPersonaModel(persona)),
       persona,
       gmRole: gmSettings.gmRole || "random",
       thinkEnabled: !!gmSettings.thinkEnabled,
@@ -2415,15 +2512,7 @@ if (editOverlay) {
 
     // 💅 Limpiamos “Sylvie: …” / “Frieren: …” y quitamos <think> siempre para el usuario
     const replyNoThinkAlways = stripThinkBlocksAlways(reply);
-    reply = replyNoThinkAlways;
-    reply = sanitizePersonaReply(reply, persona);
-    reply = dropOtherPersonaLabel(reply, persona);
-    reply = dropPlayerLabel(reply);
-    if (persona === "sylvie") {
-      reply = enforceSylvieAddress(reply);
-    }
-    reply = ensureNonSilentReply(reply, persona);
-    reply = ensureNaturalEnding(reply);
+    reply = cleanAssistantTextForPersona(replyNoThinkAlways, persona);
 
     // Espera mínima para que la animación de "escribiendo" se vea natural
     const elapsed = Date.now() - typingStart;
@@ -2699,6 +2788,20 @@ if (editOverlay) {
             <input id="ai1-name-input" type="text" placeholder="Ana" />
           </label>
           <label class="gm-field">
+            <span>Modelo de IA 1</span>
+            <select id="ai1-model-select">
+              <option value="">Usar modelo del GM</option>
+              <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
+              <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
+              <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
+              <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
+              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
+              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
+            </select>
+          </label>
+          <label class="gm-field">
             <span>Emoji / Avatar de IA 1</span>
             <input id="ai1-avatar-emoji" type="text" maxlength="4" />
           </label>
@@ -2706,6 +2809,14 @@ if (editOverlay) {
             <span>Imagen de perfil de IA 1</span>
             <input id="ai1-avatar-image" type="file" accept="image/*" />
           </label>
+          <label class="gm-field">
+            <span>Character Card de IA 1 (PNG / WebP / JSON)</span>
+            <input id="ai1-card-file" type="file" accept="image/png,image/webp,application/json" />
+          </label>
+          <p class="gm-small-hint" id="ai1-card-status">Ninguna card cargada.</p>
+          <button id="ai1-card-clear" type="button" class="gm-danger-btn">
+            Quitar Character Card de IA 1
+          </button>
           <label class="gm-field">
             <span>Prompt extra de IA 1</span>
             <textarea id="ai1-extra-prompt" rows="3" placeholder="Personalidad, tono, límites, relación con la sala..."></textarea>
@@ -2731,6 +2842,20 @@ if (editOverlay) {
             <input id="ai2-name-input" type="text" placeholder="IA 2" />
           </label>
           <label class="gm-field">
+            <span>Modelo de IA 2</span>
+            <select id="ai2-model-select">
+              <option value="">Usar modelo del GM</option>
+              <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
+              <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
+              <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
+              <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
+              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
+              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
+            </select>
+          </label>
+          <label class="gm-field">
             <span>Emoji / Avatar de IA 2</span>
             <input id="ai2-avatar-emoji" type="text" maxlength="4" />
           </label>
@@ -2738,6 +2863,14 @@ if (editOverlay) {
             <span>Imagen de perfil de IA 2</span>
             <input id="ai2-avatar-image" type="file" accept="image/*" />
           </label>
+          <label class="gm-field">
+            <span>Character Card de IA 2 (PNG / WebP / JSON)</span>
+            <input id="ai2-card-file" type="file" accept="image/png,image/webp,application/json" />
+          </label>
+          <p class="gm-small-hint" id="ai2-card-status">Ninguna card cargada.</p>
+          <button id="ai2-card-clear" type="button" class="gm-danger-btn">
+            Quitar Character Card de IA 2
+          </button>
           <label class="gm-field">
             <span>Prompt extra de IA 2</span>
             <textarea id="ai2-extra-prompt" rows="3" placeholder="Personalidad, tono, límites, relación con la sala..."></textarea>
@@ -2833,9 +2966,13 @@ if (editOverlay) {
       enabledToggle: panel.querySelector(`#${key}-enabled-toggle`),
       visibleToggle: panel.querySelector(`#${key}-visible-toggle`),
       moderationToggle: panel.querySelector(`#${key}-moderation-toggle`),
+      modelSelect: panel.querySelector(`#${key}-model-select`),
       nameInput: panel.querySelector(`#${key}-name-input`),
       emojiInput: panel.querySelector(`#${key}-avatar-emoji`),
       imageInput: panel.querySelector(`#${key}-avatar-image`),
+      cardFileInput: panel.querySelector(`#${key}-card-file`),
+      cardStatus: panel.querySelector(`#${key}-card-status`),
+      cardClearBtn: panel.querySelector(`#${key}-card-clear`),
       extraPromptArea: panel.querySelector(`#${key}-extra-prompt`),
     }));
 
@@ -2901,10 +3038,18 @@ if (editOverlay) {
       if (controls.enabledToggle) controls.enabledToggle.checked = !!slot.enabled;
       if (controls.visibleToggle) controls.visibleToggle.checked = !!slot.visible;
       if (controls.moderationToggle) controls.moderationToggle.checked = !!slot.moderationEnabled;
+      if (controls.modelSelect) controls.modelSelect.value = slot.model || "";
       if (controls.nameInput) controls.nameInput.value = slot.name || "";
       if (controls.emojiInput) controls.emojiInput.value = slot.avatarEmoji || "";
       if (controls.extraPromptArea) controls.extraPromptArea.value = slot.extraPrompt || "";
     });
+    const renderAISlotCardStatus = (controls) => {
+      if (!controls.cardStatus || !controls.slot) return;
+      controls.cardStatus.textContent = controls.slot.cardName
+        ? `Card cargada: ${controls.slot.cardName}`
+        : "Ninguna card cargada.";
+    };
+    aiControls.forEach(renderAISlotCardStatus);
     const renderCardStatus = () => {
       if (!gmCardStatus) return;
       if (gmSettings.gmCardName) {
@@ -3066,6 +3211,13 @@ if (editOverlay) {
         });
       }
 
+      if (controls.modelSelect) {
+        controls.modelSelect.addEventListener("change", () => {
+          slot.model = controls.modelSelect.value || "";
+          saveGMSettings();
+        });
+      }
+
       if (controls.nameInput) {
         controls.nameInput.addEventListener("input", () => {
           slot.name = controls.nameInput.value || slot.key.toUpperCase();
@@ -3099,6 +3251,57 @@ if (editOverlay) {
             sendWs({ type: "avatar_update", name: slotName, avatar: e.target.result });
           };
           reader.readAsDataURL(file);
+        });
+      }
+
+      if (controls.cardFileInput) {
+        controls.cardFileInput.addEventListener("change", async () => {
+          const file = controls.cardFileInput.files && controls.cardFileInput.files[0];
+          if (!file) return;
+          if (controls.cardStatus) {
+            controls.cardStatus.textContent = "Cargando card...";
+          }
+          try {
+            const result = await loadCharacterCardIntoAISlot(file, slot);
+            saveGMSettings();
+            renderPlayers();
+            broadcastSharedRosterState();
+            if (controls.nameInput) {
+              controls.nameInput.value = getAISlotName(controls.key);
+            }
+            renderAISlotCardStatus(controls);
+            showToast(`✅ Card cargada en ${getAISlotName(controls.key)}: ${result.cardName || "sin nombre"}`, { type: "success", duration: 4000 });
+          } catch (err) {
+            console.error("Error al cargar card de IA:", err);
+            if (controls.cardStatus) {
+              controls.cardStatus.textContent =
+                "Error al cargar la card. Usa PNG/WebP con metadata o JSON válido.";
+            }
+            showToast("No se pudo leer la Character Card de la IA. Usa un PNG/WebP con metadata o un JSON válido.", { type: "danger", duration: 6000 });
+          }
+        });
+      }
+
+      if (controls.cardClearBtn) {
+        controls.cardClearBtn.addEventListener("click", () => {
+          const prevCardName = slot.cardName;
+          const prevCardAvatar = slot.cardAvatarDataUrl;
+          slot.cardName = "";
+          slot.cardPrompt = "";
+          slot.cardAvatarDataUrl = "";
+          if (slot.name === prevCardName) {
+            slot.name = DEFAULT_AI_SLOTS.find((defaults) => defaults.key === slot.key)?.name || slot.key.toUpperCase();
+            if (controls.nameInput) {
+              controls.nameInput.value = slot.name;
+            }
+          }
+          if (slot.avatarImageDataUrl === prevCardAvatar) {
+            slot.avatarImageDataUrl = "";
+          }
+          saveGMSettings();
+          renderPlayers();
+          broadcastSharedRosterState();
+          renderAISlotCardStatus(controls);
         });
       }
 
