@@ -731,12 +731,18 @@
       gmEnabled: !!raw.gmEnabled,
       aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
         const slot = rawSlots[index] || {};
+        // Prioridad: nombre del slot recibido → nombre actual en gmSettings → default
+        // No caemos al default si el nombre recibido existe aunque sea el mismo que el default
+        const resolvedName =
+          (typeof slot.name === "string" && slot.name.trim())
+            ? slot.name.trim()
+            : (typeof gmSettings?.aiSlots?.[index]?.name === "string" && gmSettings.aiSlots[index].name.trim())
+              ? gmSettings.aiSlots[index].name.trim()
+              : defaults.name;
         return {
           key: defaults.key,
-          name:
-            (typeof slot.name === "string" && slot.name.trim()) ||
-            defaults.name,
-          visible: slot.visible === true,
+          name: resolvedName,
+          visible: !!slot.visible,
           enabled: !!slot.enabled,
         };
       }),
@@ -747,9 +753,41 @@
 
   function applySharedRosterState(raw, options = {}) {
     if (!raw || typeof raw !== "object") return;
+
+    // Si el roster entrante no trae aiSlots (servidor legacy o mensaje sin slots),
+    // conservar el estado local de aiSlots íntegro sin sobreescribir.
+    const hasIncomingSlots = Array.isArray(raw.aiSlots) && raw.aiSlots.length > 0;
+
+    const mergedAiSlots = DEFAULT_AI_SLOTS.map((defaults, index) => {
+      const incoming = hasIncomingSlots ? (raw.aiSlots[index] || {}) : null;
+      const current = (sharedRosterState.aiSlots || [])[index] || {};
+
+      if (!incoming) {
+        return {
+          key: defaults.key,
+          name: current.name || defaults.name,
+          visible: !!current.visible,
+          enabled: !!current.enabled,
+        };
+      }
+
+      return {
+        key: defaults.key,
+        name:
+          (typeof incoming.name === "string" && incoming.name.trim())
+            ? incoming.name.trim()
+            : (typeof current.name === "string" && current.name.trim())
+              ? current.name.trim()
+              : defaults.name,
+        visible: incoming.visible !== undefined ? !!incoming.visible : !!current.visible,
+        enabled: incoming.enabled !== undefined ? !!incoming.enabled : !!current.enabled,
+      };
+    });
+
     sharedRosterState = normalizeSharedRosterState({
       ...sharedRosterState,
       ...raw,
+      aiSlots: mergedAiSlots,
     });
 
     if (options.render !== false) {
@@ -764,7 +802,8 @@
       gmEnabled: !!gmSettings.gmEnabled,
       aiSlots: getAISlots().map((slot) => ({
         key: slot.key,
-        name: (slot.name || "").trim() || slot.key.toUpperCase(),
+        // Nombre en orden de prioridad: nombre actual del slot → cardName → key en mayúsculas
+        name: (slot.name || "").trim() || (slot.cardName || "").trim() || slot.key.toUpperCase(),
         visible: !!slot.visible,
         enabled: !!slot.enabled,
       })),
@@ -1211,10 +1250,16 @@ if (themeSelector) {
         online: sharedRosterState.gmEnabled,
       });
     }
-    (sharedRosterState.aiSlots || []).forEach((slot) => {
-      if (!slot || slot.visible !== true) return;
+    (sharedRosterState.aiSlots || []).forEach((slot, index) => {
+      if (!slot || !slot.visible) return;
+      // Preferimos el nombre actual de gmSettings (más fresco) sobre el del sharedRosterState
+      // para que un cambio de nombre se refleje de inmediato sin esperar al broadcast
+      const liveName =
+        (isGM && gmSettings?.aiSlots?.[index]?.name?.trim())
+          ? gmSettings.aiSlots[index].name.trim()
+          : (slot.name || "IA");
       npcs.push({
-        name: slot.name || "IA",
+        name: liveName,
         role: slot.enabled ? "IA conectada" : "IA desconectada",
         isMe: false,
         online: !!slot.enabled,
@@ -2608,7 +2653,7 @@ if (editOverlay) {
 
 
 
-   if (sendBtn) {
+  if (sendBtn) {
     sendBtn.addEventListener("click", sendMessage);
   }
 
@@ -3039,7 +3084,8 @@ if (editOverlay) {
       if (controls.visibleToggle) controls.visibleToggle.checked = !!slot.visible;
       if (controls.moderationToggle) controls.moderationToggle.checked = !!slot.moderationEnabled;
       if (controls.modelSelect) controls.modelSelect.value = slot.model || "";
-      if (controls.nameInput) controls.nameInput.value = slot.name || "";
+      // Usar getAISlotName para obtener el nombre más actualizado (slot → card → key)
+      if (controls.nameInput) controls.nameInput.value = getAISlotName(controls.key) || "";
       if (controls.emojiInput) controls.emojiInput.value = slot.avatarEmoji || "";
       if (controls.extraPromptArea) controls.extraPromptArea.value = slot.extraPrompt || "";
     });
@@ -3220,9 +3266,11 @@ if (editOverlay) {
 
       if (controls.nameInput) {
         controls.nameInput.addEventListener("input", () => {
-          slot.name = controls.nameInput.value || slot.key.toUpperCase();
+          const newName = controls.nameInput.value.trim() || slot.key.toUpperCase();
+          slot.name = newName;
           saveGMSettings();
           renderPlayers();
+          renderMessages(); // refresca avatares en el historial con el nuevo nombre
           broadcastSharedRosterState();
         });
       }

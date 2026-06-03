@@ -38,11 +38,23 @@ function makeChatVersion() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const AI_SLOT_KEYS = ["ai1", "ai2"];
+
 function normalizeRosterState(raw = {}) {
+  const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
   return {
     gmName: safeString(raw.gmName, 80).trim() || "...",
     gmVisible: raw.gmVisible !== false,
     gmEnabled: !!raw.gmEnabled,
+    aiSlots: AI_SLOT_KEYS.map((key, index) => {
+      const slot = rawSlots[index] || {};
+      return {
+        key,
+        name: safeString(slot.name, 80).trim() || key.toUpperCase(),
+        visible: !!slot.visible,
+        enabled: !!slot.enabled,
+      };
+    }),
     sylvieVisible: raw.sylvieVisible !== false,
     sylvieEnabled: !!raw.sylvieEnabled,
   };
@@ -315,8 +327,21 @@ app.post("/api/chat", async (req, res) => {
         ? [
           {
             role: "system",
-            content: `Jugador actual: ${playerName || "Viajero"}. Historia / trasfondo y descripcion fisica: ${playerHistory || "No se proporciono historia; tratalo como recien llegado."
-              }. Si el jugador se llama Cristal, reconoce que es Cristal. Usa los detalles de apariencia, ropa, ojos, cabello, marcas, postura o aura cuando encajen naturalmente en la escena, sin mencionarlos en cada respuesta ni repetir siempre el mismo rasgo.`,
+            content: [
+              `=== PERFIL DEL JUGADOR: ${playerName || "Viajero"} ===`,
+              `Descripción completa (apariencia, historia, origen, personalidad):`,
+              playerHistory || "No se proporcionó historia; trátalo como un viajero recién llegado.",
+              ``,
+              `CÓMO USAR ESTE PERFIL EN TUS RESPUESTAS:`,
+              `- Esta descripción define cómo luce, huele, se mueve y qué presencia tiene ${playerName || "el jugador"}.`,
+              `- Puedes notar su apariencia (color de ojos, cabello, ropa, complexión, marcas) cuando la escena lo haga natural: al verlo entrar, al mirarlo de cerca, al reaccionar a su presencia.`,
+              `- Si la descripción sugiere un aroma, fragancia o olor (por su ropa, origen, flores, naturaleza, perfume), puedes percibirlo sutilmente cuando estés cerca físicamente de él/ella.`,
+              `- Puedes notar su forma de moverse, su postura, su voz o su energía/aura cuando la situación lo amerite.`,
+              `- NO menciones estos detalles en cada respuesta. Varía: a veces el cabello, a veces los ojos, a veces el olor, a veces el movimiento. Que se sienta espontáneo, no mecánico.`,
+              `- En un primer encuentro o reencuentro puedes hacer una observación más completa. En intercambios rutinarios, elige solo un rasgo si corresponde.`,
+              `- Si el jugador se llama Cristal, reconoce que es Cristal.`,
+              `=== FIN DEL PERFIL ===`,
+            ].join("\n"),
           },
         ]
         : [];
