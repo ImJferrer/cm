@@ -6,7 +6,9 @@
   const playersListEl = document.getElementById("players-list");
   const playersCountEl = document.getElementById("players-count");
   const typingIndicator = document.getElementById("typing-indicator");
-  const typingLabel = typingIndicator ? typingIndicator.querySelector(".typing-label") : null;
+  const typingLabel = typingIndicator
+    ? typingIndicator.querySelector(".typing-label")
+    : null;
 
   const userNameEl = document.getElementById("chat-user-name");
   const userTagEl = document.getElementById("chat-user-tag");
@@ -42,10 +44,12 @@
 
   const wsState = { ws: null, connected: false, clientId: null };
   let remotePlayers = [];
-  
 
   function resolveApiBase() {
-    const raw = window.DWJC2_API_BASE || localStorage.getItem("dwjc2_api_base") || window.location.origin;
+    const raw =
+      window.DWJC2_API_BASE ||
+      localStorage.getItem("dwjc2_api_base") ||
+      window.location.origin;
     return String(raw || "").replace(/\/+$/, "");
   }
 
@@ -124,7 +128,7 @@
       : window.innerHeight;
     document.documentElement.style.setProperty(
       "--app-height",
-      `${Math.round(viewportHeight)}px`
+      `${Math.round(viewportHeight)}px`,
     );
   }
 
@@ -136,7 +140,8 @@
     const computed = window.getComputedStyle(messageInput);
     const lineHeight = parseFloat(computed.lineHeight) || 20;
     const maxHeight = lineHeight * 5;
-    messageInput.style.height = Math.min(messageInput.scrollHeight, maxHeight) + "px";
+    messageInput.style.height =
+      Math.min(messageInput.scrollHeight, maxHeight) + "px";
     if (keepBottomVisible) {
       scrollChatToBottom({ smooth: false, force: true });
     }
@@ -152,13 +157,19 @@
   const toastQueue = [];
   let toastActive = false;
 
-  function showToast(msg, { type = "info", duration = 4000, actions = [] } = {}) {
+  function showToast(
+    msg,
+    { type = "info", duration = 4000, actions = [] } = {},
+  ) {
     toastQueue.push({ msg, type, duration, actions });
     if (!toastActive) processToastQueue();
   }
 
   function processToastQueue() {
-    if (!toastQueue.length) { toastActive = false; return; }
+    if (!toastQueue.length) {
+      toastActive = false;
+      return;
+    }
     toastActive = true;
     const { msg, type, duration, actions } = toastQueue.shift();
 
@@ -172,9 +183,16 @@
 
     actions.forEach(({ label, cb, primary }) => {
       const btn = document.createElement("button");
-      btn.className = primary ? "dw-toast__btn dw-toast__btn--primary" : "dw-toast__btn";
+      btn.className = primary
+        ? "dw-toast__btn dw-toast__btn--primary"
+        : "dw-toast__btn";
       btn.textContent = label;
-      btn.addEventListener("click", () => { toast.remove(); clearTimeout(toast._timer); cb && cb(); setTimeout(processToastQueue, 350); });
+      btn.addEventListener("click", () => {
+        toast.remove();
+        clearTimeout(toast._timer);
+        cb && cb();
+        setTimeout(processToastQueue, 350);
+      });
       toast.appendChild(btn);
     });
 
@@ -184,7 +202,14 @@
     if (duration > 0) {
       toast._timer = setTimeout(() => {
         toast.classList.remove("dw-toast--in");
-        toast.addEventListener("transitionend", () => { toast.remove(); setTimeout(processToastQueue, 350); }, { once: true });
+        toast.addEventListener(
+          "transitionend",
+          () => {
+            toast.remove();
+            setTimeout(processToastQueue, 350);
+          },
+          { once: true },
+        );
       }, duration);
     }
   }
@@ -202,7 +227,11 @@
       if (headerCenter) headerCenter.appendChild(dot);
     }
     dot.className = "ws-status-dot ws-status--" + status;
-    const labels = { connected: "Conexión estable", reconnecting: "Reconectando…", "cold-start": "Iniciando servidor…" };
+    const labels = {
+      connected: "Conexión estable",
+      reconnecting: "Reconectando…",
+      "cold-start": "Iniciando servidor…",
+    };
     dot.title = labels[status] || "";
   }
 
@@ -221,27 +250,33 @@
 
   function sendWs(payload) {
     if (!wsState.ws || wsState.ws.readyState !== WebSocket.OPEN) return;
-    try { wsState.ws.send(JSON.stringify(payload)); } catch (_) {}
+    try {
+      wsState.ws.send(JSON.stringify(payload));
+    } catch (_) {}
   }
 
   function handleWsMessage(raw) {
     if (typeof raw !== "string") return;
     let data;
-    try { data = JSON.parse(raw); } catch (_) { return; }
+    try {
+      data = JSON.parse(raw);
+    } catch (_) {
+      return;
+    }
     if (!data || typeof data !== "object") return;
 
     // Typing humano
     if (data.type === "typing" && data.author) {
-  if (data.author !== player.name) {
-    addTypingUser(data.author);
-  }
-  return;
-}
+      if (data.author !== player.name) {
+        addTypingUser(data.author);
+      }
+      return;
+    }
 
-  if (data.type === "stop-typing" && data.author) {
-  removeTypingUser(data.author);
-  return;
-  }
+    if (data.type === "stop-typing" && data.author) {
+      removeTypingUser(data.author);
+      return;
+    }
 
     // Typing de IA (GM / Sylvie) → visible para TODOS
     if (data.type === "ai-typing" && data.author) {
@@ -281,10 +316,13 @@
         applyServerChatVersion(data.chatVersion);
       }
       remotePlayers = data.players;
-      data.players.forEach(p => {
+      data.players.forEach((p) => {
         if (p.avatar) window.avatarsCache[p.name] = p.avatar;
       });
-      localStorage.setItem("dwjc2_avatars_cache", JSON.stringify(window.avatarsCache));
+      localStorage.setItem(
+        "dwjc2_avatars_cache",
+        JSON.stringify(window.avatarsCache),
+      );
       renderPlayers();
       renderMessages();
       return;
@@ -298,7 +336,10 @@
     if (data.type === "avatar_update") {
       if (data.name && data.avatar !== undefined) {
         window.avatarsCache[data.name] = data.avatar;
-        localStorage.setItem("dwjc2_avatars_cache", JSON.stringify(window.avatarsCache));
+        localStorage.setItem(
+          "dwjc2_avatars_cache",
+          JSON.stringify(window.avatarsCache),
+        );
         renderMessages();
       }
       return;
@@ -306,11 +347,13 @@
 
     if (data.type === "presence") {
       if (data.event === "join") {
-        if (!remotePlayers.find(p => p.clientId === data.clientId)) {
+        if (!remotePlayers.find((p) => p.clientId === data.clientId)) {
           remotePlayers.push({ clientId: data.clientId, name: data.name });
         }
       } else if (data.event === "leave") {
-        remotePlayers = remotePlayers.filter(p => p.clientId !== data.clientId);
+        remotePlayers = remotePlayers.filter(
+          (p) => p.clientId !== data.clientId,
+        );
       }
       renderPlayers();
       return;
@@ -332,20 +375,28 @@
   }
 
   function connectWebSocket(playerName) {
-    if (!WS_URL || (wsState.ws && wsState.ws.readyState === WebSocket.OPEN)) return;
+    if (!WS_URL || (wsState.ws && wsState.ws.readyState === WebSocket.OPEN))
+      return;
 
     // Cold start detection: if this is the first connection attempt, warn after 5s
     let coldStartTimer = null;
     if (!wsFirstConnected) {
       coldStartTimer = setTimeout(() => {
         setConnectionStatus("cold-start");
-        showToast("✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…", { type: "info", duration: 0 });
+        showToast(
+          "✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…",
+          { type: "info", duration: 0 },
+        );
       }, 5000);
     }
 
     try {
       wsState.ws = new WebSocket(WS_URL);
-    } catch (err) { console.warn("[ws] Error:", err); clearTimeout(coldStartTimer); return; }
+    } catch (err) {
+      console.warn("[ws] Error:", err);
+      clearTimeout(coldStartTimer);
+      return;
+    }
 
     wsState.ws.addEventListener("open", () => {
       clearTimeout(coldStartTimer);
@@ -355,21 +406,33 @@
 
       // Remove any reconnecting/cold-start toast
       const t = document.getElementById("dw-toast");
-      if (t) { t.classList.remove("dw-toast--in"); setTimeout(() => t.remove(), 350); }
+      if (t) {
+        t.classList.remove("dw-toast--in");
+        setTimeout(() => t.remove(), 350);
+      }
 
       if (wsFirstConnected) {
         // Reconnected after a drop — show friendly message
-        showToast("✅ El puente interdimensional fue restaurado.", { type: "success", duration: 3000 });
+        showToast("✅ El puente interdimensional fue restaurado.", {
+          type: "success",
+          duration: 3000,
+        });
       }
       wsFirstConnected = true;
 
-      sendWs({ type: "hello", name: playerName || "Viajero", avatar: player.avatarDataUrl });
+      sendWs({
+        type: "hello",
+        name: playerName || "Viajero",
+        avatar: player.avatarDataUrl,
+      });
       if (isGM) {
         broadcastSharedRosterState();
       }
     });
 
-    wsState.ws.addEventListener("message", (event) => handleWsMessage(event.data));
+    wsState.ws.addEventListener("message", (event) =>
+      handleWsMessage(event.data),
+    );
 
     wsState.ws.addEventListener("close", () => {
       clearTimeout(coldStartTimer);
@@ -379,11 +442,17 @@
       if (wsFirstConnected) {
         // Only show toast after first successful connection to avoid noise on initial cold start
         const attempt = wsReconnectAttempts + 1;
-        showToast(`🌀 La conexión se interrumpió. Reconectando el portal… (intento ${attempt})`, { type: "warning", duration: 0 });
+        showToast(
+          `🌀 La conexión se interrumpió. Reconectando el portal… (intento ${attempt})`,
+          { type: "warning", duration: 0 },
+        );
       }
 
       wsReconnectAttempts++;
-      const delay = Math.min(WS_RECONNECT_BASE_MS * Math.pow(1.5, wsReconnectAttempts - 1), WS_RECONNECT_MAX_MS);
+      const delay = Math.min(
+        WS_RECONNECT_BASE_MS * Math.pow(1.5, wsReconnectAttempts - 1),
+        WS_RECONNECT_MAX_MS,
+      );
       wsReconnectTimer = setTimeout(() => connectWebSocket(playerName), delay);
     });
 
@@ -395,7 +464,10 @@
 
   // 1) Cargar jugador del localStorage
   const playerRaw = localStorage.getItem("dwjc2_player");
-  if (!playerRaw) { window.location.href = "index.html"; return; }
+  if (!playerRaw) {
+    window.location.href = "index.html";
+    return;
+  }
   let player;
   try {
     player = JSON.parse(playerRaw);
@@ -405,8 +477,9 @@
     return;
   }
 
-  window.avatarsCache = JSON.parse(localStorage.getItem("dwjc2_avatars_cache") || "{}");
-
+  window.avatarsCache = JSON.parse(
+    localStorage.getItem("dwjc2_avatars_cache") || "{}",
+  );
 
   // Botón de cerrar sesión para jugadores normales
   const logoutBtnEl = document.getElementById("logout-btn");
@@ -423,7 +496,7 @@
     });
   }
 
-    // --- detección de GM + nombres especiales ---
+  // --- detección de GM + nombres especiales ---
   const normalizedName = (player.name || "").toLowerCase().trim();
   const storedGmFlag = localStorage.getItem("dwjc2_gm_flag") === "1";
 
@@ -433,17 +506,20 @@
   let isGM = normalizedName === "cristal" && storedGmFlag;
 
   // (Opcional, pero útil para debug)
-  console.log("[DWJC2] Nombre:", normalizedName, "GM flag:", storedGmFlag, "isGM:", isGM);
-
-
+  console.log(
+    "[DWJC2] Nombre:",
+    normalizedName,
+    "GM flag:",
+    storedGmFlag,
+    "isGM:",
+    isGM,
+  );
 
   // 2) Ajustar header lateral con datos del jugador
   if (userNameEl) userNameEl.textContent = player.name || "Viajero";
 
-  
-
   if (userTagEl) {
-    userTagEl.textContent = `ID: ${player.serial || 'DW-0000'}`;
+    userTagEl.textContent = `ID: ${player.serial || "DW-0000"}`;
   }
 
   if (userAvatarEl) {
@@ -491,7 +567,7 @@
     });
   }
 
-    async function handleGmAuthSubmit() {
+  async function handleGmAuthSubmit() {
     if (!gmAuthMode || !gmAuthPasswordInput) return;
     const pwd = gmAuthPasswordInput.value.trim();
     if (!pwd) {
@@ -577,7 +653,7 @@
     });
   }
 
-     // ========== CONFIG GM & SETTINGS ==========
+  // ========== CONFIG GM & SETTINGS ==========
 
   let gmSettings = {
     gmName: "...", // nombre visible del GM (default "...")
@@ -604,7 +680,6 @@
     sylvieExtraPrompt: "",
     sylvieVisible: false, // mostrar Sylvie en la lista de jugadores
   };
-
 
   function loadGMSettings() {
     try {
@@ -650,11 +725,13 @@
 
   function getAISlotName(persona) {
     const slot = getAISlot(persona);
+
+    if (!slot) return "IA";
+
     return (
-      (slot?.name || "").trim() ||
-      (slot?.cardName || "").trim() ||
-      slot?.key?.toUpperCase() ||
-      "IA"
+      (slot.name || "").trim() ||
+      (slot.cardName || "").trim() ||
+      `IA ${AI_SLOT_KEYS.indexOf(persona) + 1}`
     );
   }
 
@@ -682,12 +759,23 @@
   }
 
   function getPersonaByAuthor(author) {
-    const normalized = String(author || "").trim().toLowerCase();
+    const normalized = String(author || "")
+      .trim()
+      .toLowerCase();
     if (!normalized) return null;
-    if (normalized === String(getGMName() || "").trim().toLowerCase()) return "gm";
+    if (
+      normalized ===
+      String(getGMName() || "")
+        .trim()
+        .toLowerCase()
+    )
+      return "gm";
     if (normalized === SYLVIE_NAME.toLowerCase()) return "sylvie";
     const slotKey = AI_SLOT_KEYS.find(
-      (key) => String(getAISlotName(key) || "").trim().toLowerCase() === normalized
+      (key) =>
+        String(getAISlotName(key) || "")
+          .trim()
+          .toLowerCase() === normalized,
     );
     return slotKey || null;
   }
@@ -722,60 +810,57 @@
   }
 
   function normalizeSharedRosterState(raw = {}) {
-  const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
+    const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
 
-  return {
-    gmName:
-      (typeof raw.gmName === "string" && raw.gmName.trim()) ||
-      DEFAULT_SHARED_ROSTER_STATE.gmName,
+    return {
+      gmName:
+        (typeof raw.gmName === "string" && raw.gmName.trim()) ||
+        DEFAULT_SHARED_ROSTER_STATE.gmName,
 
-    gmVisible: raw.gmVisible !== false,
+      gmVisible: raw.gmVisible !== false,
 
-    gmEnabled: !!raw.gmEnabled,
+      gmEnabled: !!raw.gmEnabled,
 
-    aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
-      const slot = rawSlots[index] || {};
+      aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
+        const slot = rawSlots[index] || {};
 
-      const resolvedName =
-        (typeof slot.name === "string" && slot.name.trim())
-          ? slot.name.trim()
-          : (typeof gmSettings?.aiSlots?.[index]?.name === "string" &&
-             gmSettings.aiSlots[index].name.trim())
-            ? gmSettings.aiSlots[index].name.trim()
-            : defaults.name;
+        const resolvedName =
+          typeof slot.name === "string" && slot.name.trim()
+            ? slot.name.trim()
+            : typeof gmSettings?.aiSlots?.[index]?.name === "string" &&
+                gmSettings.aiSlots[index].name.trim()
+              ? gmSettings.aiSlots[index].name.trim()
+              : defaults.name;
 
-      return {
-        key: defaults.key,
+        return {
+          key: defaults.key,
 
-        name: resolvedName,
+          name: resolvedName,
 
-        visible:
-          typeof slot.visible === "boolean"
-            ? slot.visible
-            : defaults.visible,
+          visible:
+            typeof slot.visible === "boolean" ? slot.visible : defaults.visible,
 
-        enabled:
-          typeof slot.enabled === "boolean"
-            ? slot.enabled
-            : defaults.enabled,
-      };
-    }),
+          enabled:
+            typeof slot.enabled === "boolean" ? slot.enabled : defaults.enabled,
+        };
+      }),
 
-    sylvieVisible: raw.sylvieVisible !== false,
+      sylvieVisible: raw.sylvieVisible !== false,
 
-    sylvieEnabled: !!raw.sylvieEnabled,
-  };
-}
+      sylvieEnabled: !!raw.sylvieEnabled,
+    };
+  }
 
   function applySharedRosterState(raw, options = {}) {
     if (!raw || typeof raw !== "object") return;
 
     // Si el roster entrante no trae aiSlots (servidor legacy o mensaje sin slots),
     // conservar el estado local de aiSlots íntegro sin sobreescribir.
-    const hasIncomingSlots = Array.isArray(raw.aiSlots) && raw.aiSlots.length > 0;
+    const hasIncomingSlots =
+      Array.isArray(raw.aiSlots) && raw.aiSlots.length > 0;
 
     const mergedAiSlots = DEFAULT_AI_SLOTS.map((defaults, index) => {
-      const incoming = hasIncomingSlots ? (raw.aiSlots[index] || {}) : null;
+      const incoming = hasIncomingSlots ? raw.aiSlots[index] || {} : null;
       const current = (sharedRosterState.aiSlots || [])[index] || {};
 
       if (!incoming) {
@@ -790,13 +875,19 @@
       return {
         key: defaults.key,
         name:
-          (typeof incoming.name === "string" && incoming.name.trim())
+          typeof incoming.name === "string" && incoming.name.trim()
             ? incoming.name.trim()
-            : (typeof current.name === "string" && current.name.trim())
+            : typeof current.name === "string" && current.name.trim()
               ? current.name.trim()
               : defaults.name,
-        visible: incoming.visible !== undefined ? !!incoming.visible : !!current.visible,
-        enabled: incoming.enabled !== undefined ? !!incoming.enabled : !!current.enabled,
+        visible:
+          incoming.visible !== undefined
+            ? !!incoming.visible
+            : !!current.visible,
+        enabled:
+          incoming.enabled !== undefined
+            ? !!incoming.enabled
+            : !!current.enabled,
       };
     });
 
@@ -819,7 +910,10 @@
       aiSlots: getAISlots().map((slot) => ({
         key: slot.key,
         // Nombre en orden de prioridad: nombre actual del slot → cardName → key en mayúsculas
-        name: (slot.name || "").trim() || (slot.cardName || "").trim() || slot.key.toUpperCase(),
+        name:
+          (slot.name || "").trim() ||
+          (slot.cardName || "").trim() ||
+          slot.key.toUpperCase(),
         visible: !!slot.visible,
         enabled: !!slot.enabled,
       })),
@@ -850,7 +944,10 @@
         }
       })
       .catch((err) => {
-        console.warn("[roster-state] No se pudo persistir en el servidor:", err);
+        console.warn(
+          "[roster-state] No se pudo persistir en el servidor:",
+          err,
+        );
       });
   }
 
@@ -879,46 +976,46 @@
   }
 
   // ==========================
-// THEME SWITCHER
-// ==========================
+  // THEME SWITCHER
+  // ==========================
 
-// ==================== TYPING INDICATOR PARA TODOS ====================
+  // ==================== TYPING INDICATOR PARA TODOS ====================
 
   function updateTypingIndicator() {
-  console.log("[TYPING] updateTypingIndicator() - users:", typingUsers);
-  if (!typingIndicator || !typingLabel) {
-    console.log("[TYPING] Missing typingIndicator or typingLabel");
-    return;
+    console.log("[TYPING] updateTypingIndicator() - users:", typingUsers);
+    if (!typingIndicator || !typingLabel) {
+      console.log("[TYPING] Missing typingIndicator or typingLabel");
+      return;
+    }
+
+    if (typingUsers.length === 0) {
+      console.log("[TYPING] Hiding indicator (no users)");
+      typingIndicator.classList.add("hidden");
+      return;
+    }
+
+    console.log("[TYPING] Showing indicator for:", typingUsers);
+    typingIndicator.classList.remove("hidden");
+
+    if (typingUsers.length === 1) {
+      typingLabel.textContent = `${typingUsers[0]} está escribiendo...`;
+    } else {
+      typingLabel.textContent = `${typingUsers.join(", ")} están escribiendo...`;
+    }
+    scrollChatToBottom({ smooth: true, force: false });
   }
 
-  if (typingUsers.length === 0) {
-    console.log("[TYPING] Hiding indicator (no users)");
-    typingIndicator.classList.add("hidden");
-    return;
+  function addTypingUser(name) {
+    if (!typingUsers.includes(name)) {
+      typingUsers.push(name);
+      updateTypingIndicator();
+    }
   }
 
-  console.log("[TYPING] Showing indicator for:", typingUsers);
-  typingIndicator.classList.remove("hidden");
-
-  if (typingUsers.length === 1) {
-    typingLabel.textContent = `${typingUsers[0]} está escribiendo...`;
-  } else {
-    typingLabel.textContent = `${typingUsers.join(", ")} están escribiendo...`;
-  }
-  scrollChatToBottom({ smooth: true, force: false });
-}
-
-function addTypingUser(name) {
-  if (!typingUsers.includes(name)) {
-    typingUsers.push(name);
+  function removeTypingUser(name) {
+    typingUsers = typingUsers.filter((n) => n !== name);
     updateTypingIndicator();
   }
-}
-
-function removeTypingUser(name) {
-  typingUsers = typingUsers.filter(n => n !== name);
-  updateTypingIndicator();
-}
 
   function showTyping(show, name) {
     if (show && name) {
@@ -942,40 +1039,40 @@ function removeTypingUser(name) {
 
   // Typing del jugador (visible para los demás)
   messageInput.addEventListener("input", () => {
-  if (messageInput.value.trim() !== "") {
-    sendWs({ type: "typing", author: player.name });
+    if (messageInput.value.trim() !== "") {
+      sendWs({ type: "typing", author: player.name });
+    }
+
+    clearTimeout(window.typingTimeout);
+
+    window.typingTimeout = setTimeout(() => {
+      sendWs({ type: "stop-typing", author: player.name });
+    }, 1500);
+  });
+
+  const themeSelector = document.getElementById("theme-selector");
+
+  function applyTheme(theme) {
+    document.documentElement.classList.remove(
+      "theme-turquesa",
+      "theme-rojo",
+      "theme-negro",
+      "theme-verde",
+    );
+
+    document.documentElement.classList.add(`theme-${theme}`);
+    localStorage.setItem("dwjc2_theme", theme);
   }
 
-  clearTimeout(window.typingTimeout);
+  if (themeSelector) {
+    const savedTheme = localStorage.getItem("dwjc2_theme") || "turquesa";
+    themeSelector.value = savedTheme;
+    applyTheme(savedTheme);
 
-  window.typingTimeout = setTimeout(() => {
-    sendWs({ type: "stop-typing", author: player.name });
-  }, 1500); 
-  });
-  
-const themeSelector = document.getElementById("theme-selector");
-
-function applyTheme(theme) {
-  document.documentElement.classList.remove(
-    "theme-turquesa",
-    "theme-rojo",
-    "theme-negro",
-    "theme-verde"
-  );
-
-  document.documentElement.classList.add(`theme-${theme}`);
-  localStorage.setItem("dwjc2_theme", theme);
-}
-
-if (themeSelector) {
-  const savedTheme = localStorage.getItem("dwjc2_theme") || "turquesa";
-  themeSelector.value = savedTheme;
-  applyTheme(savedTheme);
-
-  themeSelector.addEventListener("change", () => {
-    applyTheme(themeSelector.value);
-  });
-}
+    themeSelector.addEventListener("change", () => {
+      applyTheme(themeSelector.value);
+    });
+  }
 
   // ==============================
   //   CHARACTER CARD HELPERS (PNG/JSON)
@@ -995,8 +1092,8 @@ if (themeSelector) {
       mesExamples: Array.isArray(data.mes_example)
         ? data.mes_example
         : data.mes_example
-        ? [data.mes_example]
-        : [],
+          ? [data.mes_example]
+          : [],
       creatorNotes: data.creator_notes || data.creator_note || "",
       systemPrompt: data.system_prompt || "",
       postHistory: data.post_history_instructions || "",
@@ -1017,8 +1114,10 @@ if (themeSelector) {
         if (ex && ex.trim()) lines.push(ex.trim());
       });
     }
-    if (card.creatorNotes) lines.push(`Notas del creador: ${card.creatorNotes}`);
-    if (card.systemPrompt) lines.push(`Reglas del sistema: ${card.systemPrompt}`);
+    if (card.creatorNotes)
+      lines.push(`Notas del creador: ${card.creatorNotes}`);
+    if (card.systemPrompt)
+      lines.push(`Reglas del sistema: ${card.systemPrompt}`);
     if (card.postHistory)
       lines.push(`Instrucciones post-historial: ${card.postHistory}`);
     return lines.join("\n");
@@ -1083,7 +1182,7 @@ if (themeSelector) {
         bytes[offset + 4],
         bytes[offset + 5],
         bytes[offset + 6],
-        bytes[offset + 7]
+        bytes[offset + 7],
       );
       const dataStart = offset + 8;
       const dataEnd = dataStart + length;
@@ -1141,7 +1240,11 @@ if (themeSelector) {
     for (const chunk of chunks) {
       if (!chunk || !chunk.text) continue;
       const keyword = (chunk.keyword || "").toLowerCase();
-      if (keyword === "chara" || keyword === "character" || keyword === "card") {
+      if (
+        keyword === "chara" ||
+        keyword === "character" ||
+        keyword === "card"
+      ) {
         const parsed = await tryParseCardString(chunk.text);
         if (parsed) return parsed;
       }
@@ -1190,7 +1293,9 @@ if (themeSelector) {
     }
 
     if (!cardData) {
-      throw new Error("No se encontró información de Character Card en el archivo.");
+      throw new Error(
+        "No se encontró información de Character Card en el archivo.",
+      );
     }
 
     const promptFromCard = buildCardPrompt(cardData);
@@ -1266,31 +1371,22 @@ if (themeSelector) {
         online: sharedRosterState.gmEnabled,
       });
     }
-    (sharedRosterState.aiSlots || []).forEach((slot, index) => {
-  if (!slot) return;
+    (getAISlots() || []).forEach((slot, index) => {
+      if (!slot) return;
+      if (!slot.visible) return;
 
-  const liveName =
-    (slot.name || "").trim() ||
-    (gmSettings?.aiSlots?.[index]?.name || "").trim() ||
-    `IA ${index + 1}`;
+      const liveName =
+        (slot.name || "").trim() ||
+        (slot.cardName || "").trim() ||
+        `IA ${index + 1}`;
 
-  console.log("[AI SLOT RENDER]", {
-    index,
-    liveName,
-    visible: slot.visible,
-    enabled: slot.enabled,
-    slot,
-  });
-
-  if (!slot.visible) return;
-
-  npcs.push({
-    name: liveName,
-    role: slot.enabled ? "IA conectada" : "IA desconectada",
-    isMe: false,
-    online: !!slot.enabled,
-  });
-});
+      npcs.push({
+        name: liveName,
+        role: slot.enabled ? "IA conectada" : "IA desconectada",
+        isMe: false,
+        online: !!slot.enabled,
+      });
+    });
     if (sharedRosterState.sylvieVisible !== false) {
       npcs.push({
         name: SYLVIE_NAME,
@@ -1347,7 +1443,7 @@ if (themeSelector) {
   // Moderación activa (GM o Sylvie)
   let moderationActive = false;
 
-    // Reglas:
+  // Reglas:
   // - Si Sylvie menciona sólo al GM por su nombre visible (lo que sale en el panel), el GM responde normal.
   // - Si menciona sólo a "Cristal", el GM se calla y te deja contestar a ti.
   // - Si menciona a los dos:
@@ -1359,220 +1455,235 @@ if (themeSelector) {
   const aiReplyQueue = [];
   let aiProcessingQueue = false;
 
- function handleSylvieTriggers(replyText) {
-  // No-op: dejamos que ambas voces respondan siempre si están activas.
-  return;
-}
+  function handleSylvieTriggers(replyText) {
+    // No-op: dejamos que ambas voces respondan siempre si están activas.
+    return;
+  }
 
-// Quita el nombre del personaje al principio del mensaje
-function escapeRegExp(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+  // Quita el nombre del personaje al principio del mensaje
+  function escapeRegExp(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
 
-function stripLeadingSpeakerLabels(text, names) {
-  if (!text || typeof text !== "string") return text || "";
+  function stripLeadingSpeakerLabels(text, names) {
+    if (!text || typeof text !== "string") return text || "";
 
-  const cleanNames = [...new Set(
-    (names || [])
-      .map((name) => String(name || "").trim())
-      .filter(Boolean)
-  )];
-  if (cleanNames.length === 0) return text;
-
-  const patterns = cleanNames.flatMap((name) => {
-    const escaped = escapeRegExp(name);
-    return [
-      new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:：\\-–—]\\s*`, "i"),
-      new RegExp(`^\\s*\\*\\*${escaped}\\s*[:：\\-–—]\\*\\*\\s*`, "i"),
-      new RegExp(`^\\s*${escaped}\\s*[:：\\-–—]\\s*`, "i"),
+    const cleanNames = [
+      ...new Set(
+        (names || []).map((name) => String(name || "").trim()).filter(Boolean),
+      ),
     ];
-  });
+    if (cleanNames.length === 0) return text;
 
-  let result = text;
-  let changed = true;
-  let guard = 0;
+    const patterns = cleanNames.flatMap((name) => {
+      const escaped = escapeRegExp(name);
+      return [
+        new RegExp(`^\\s*\\*\\*${escaped}\\*\\*\\s*[:：\\-–—]\\s*`, "i"),
+        new RegExp(`^\\s*\\*\\*${escaped}\\s*[:：\\-–—]\\*\\*\\s*`, "i"),
+        new RegExp(`^\\s*${escaped}\\s*[:：\\-–—]\\s*`, "i"),
+      ];
+    });
 
-  while (changed && guard < 10) {
-    changed = false;
-    guard += 1;
+    let result = text;
+    let changed = true;
+    let guard = 0;
 
-    for (const re of patterns) {
-      const next = result.replace(re, "");
-      if (next !== result) {
-        result = next;
-        changed = true;
-        break;
+    while (changed && guard < 10) {
+      changed = false;
+      guard += 1;
+
+      for (const re of patterns) {
+        const next = result.replace(re, "");
+        if (next !== result) {
+          result = next;
+          changed = true;
+          break;
+        }
       }
     }
+
+    return result.trimStart();
   }
 
-  return result.trimStart();
-}
-
-function sanitizePersonaReply(text, persona) {
-  return stripLeadingSpeakerLabels(text, [getPersonaDisplayName(persona)]);
-}
-
-// Evita que una voz empiece con la etiqueta de otra persona
-function dropOtherPersonaLabel(text, persona) {
-  if (!text || typeof text !== "string") return text || "";
-
-  const ownName = getPersonaDisplayName(persona);
-  const otherNames = getAllPersonaNames().filter(
-    (name) => String(name || "").trim().toLowerCase() !== String(ownName || "").trim().toLowerCase()
-  );
-
-  return stripLeadingSpeakerLabels(text, otherNames);
-}
-
-// Si el modelo intenta continuar con otra voz en formato guion ("Monika:", "Aoi:", etc.),
-// conserva solo la parte de la persona actual.
-function dropForeignSpeakerSections(text, persona) {
-  if (!text || typeof text !== "string") return text || "";
-
-  const ownName = String(getPersonaDisplayName(persona) || "").trim().toLowerCase();
-  const speakerBlockRe =
-    /(?:^|\n+)\s*(?:\*\*)?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][\wÁÉÍÓÚÜÑáéíóúüñ .'-]{1,40})(?:\*\*)?\s*[:：]\s*/g;
-
-  let match;
-  while ((match = speakerBlockRe.exec(text)) !== null) {
-    const label = String(match[1] || "").trim().toLowerCase();
-    if (!label || label === ownName) continue;
-    const cutIndex = match.index === 0 ? 0 : match.index;
-    return text.slice(0, cutIndex).trim();
+  function sanitizePersonaReply(text, persona) {
+    return stripLeadingSpeakerLabels(text, [getPersonaDisplayName(persona)]);
   }
 
-  return text;
-}
+  // Evita que una voz empiece con la etiqueta de otra persona
+  function dropOtherPersonaLabel(text, persona) {
+    if (!text || typeof text !== "string") return text || "";
 
-// Elimina etiquetas iniciales del jugador (o "Cristal") en las respuestas de IA
-function dropPlayerLabel(text) {
-  if (!text || typeof text !== "string") return text || "";
+    const ownName = getPersonaDisplayName(persona);
+    const otherNames = getAllPersonaNames().filter(
+      (name) =>
+        String(name || "")
+          .trim()
+          .toLowerCase() !==
+        String(ownName || "")
+          .trim()
+          .toLowerCase(),
+    );
 
-  const playerName = (player.name || "").trim();
-  const names = ["cristal", "crista"];
-  if (playerName) names.push(playerName.toLowerCase());
-
-  return stripLeadingSpeakerLabels(text, names);
-}
-
-function cleanAssistantTextForPersona(text, persona) {
-  let result = stripThinkBlocksAlways(text || "");
-  result = sanitizePersonaReply(result, persona);
-  result = dropOtherPersonaLabel(result, persona);
-  result = dropPlayerLabel(result);
-  result = dropForeignSpeakerSections(result, persona);
-  if (persona === "sylvie") {
-    result = enforceSylvieAddress(result);
+    return stripLeadingSpeakerLabels(text, otherNames);
   }
-  return ensureNaturalEnding(ensureNonSilentReply(result, persona));
-}
 
-// Determina qué voz fue mencionada primero en el texto
-function whoIsMentionedFirst(text) {
-  if (!text || typeof text !== "string") return null;
-  const lower = text.toLowerCase();
-  const candidates = getPersonaOrder().map((persona) => {
-    const names =
-      persona === "sylvie"
-        ? [SYLVIE_NAME, "alteza", "majestad"]
-        : [getPersonaDisplayName(persona)];
-    const index = names
-      .map((name) => String(name || "").trim().toLowerCase())
-      .filter(Boolean)
-      .map((name) => lower.indexOf(name))
-      .filter((i) => i >= 0)
-      .sort((a, b) => a - b)[0];
-    return index === undefined ? null : { persona, index };
-  }).filter(Boolean);
+  // Si el modelo intenta continuar con otra voz en formato guion ("Monika:", "Aoi:", etc.),
+  // conserva solo la parte de la persona actual.
+  function dropForeignSpeakerSections(text, persona) {
+    if (!text || typeof text !== "string") return text || "";
 
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => a.index - b.index);
-  return candidates[0].persona;
-}
+    const ownName = String(getPersonaDisplayName(persona) || "")
+      .trim()
+      .toLowerCase();
+    const speakerBlockRe =
+      /(?:^|\n+)\s*(?:\*\*)?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][\wÁÉÍÓÚÜÑáéíóúüñ .'-]{1,40})(?:\*\*)?\s*[:：]\s*/g;
 
-// Fuerza a Sylvie a dirigirse al jugador como "Amo" (solo usa "Jean" si realmente lo escribe en enfado)
-function enforceSylvieAddress(text) {
-  if (!text || typeof text !== "string") return text || "";
-  const playerName = (player.name || "").trim();
-  const playerNameLower = playerName.toLowerCase();
+    let match;
+    while ((match = speakerBlockRe.exec(text)) !== null) {
+      const label = String(match[1] || "")
+        .trim()
+        .toLowerCase();
+      if (!label || label === ownName) continue;
+      const cutIndex = match.index === 0 ? 0 : match.index;
+      return text.slice(0, cutIndex).trim();
+    }
 
-  // Solo aplica la lógica de "Amo/Jean" para el jugador Cristal
-  if (playerNameLower !== "cristal") {
     return text;
   }
 
-  const targets = ["cristal"];
-  if (playerName) targets.push(playerName.toLowerCase());
+  // Elimina etiquetas iniciales del jugador (o "Cristal") en las respuestas de IA
+  function dropPlayerLabel(text) {
+    if (!text || typeof text !== "string") return text || "";
 
-  const requestedName =
-    /\b(di mi nombre|dilo|di tu nombre|dime mi nombre|dime tu nombre|quieres que diga|pides que diga|me pediste|me lo pides|llámame|llamame|puedes decir mi nombre)\b/i.test(
-      text
-    );
+    const playerName = (player.name || "").trim();
+    const names = ["cristal", "crista"];
+    if (playerName) names.push(playerName.toLowerCase());
 
-  let result = text;
-  targets.forEach((n) => {
-    if (!n) return;
-    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`\\b${escaped}\\b`, "gi");
-    if (!requestedName) {
-      result = result.replace(re, "Amo");
-    }
-  });
-
-  const hasJean = /\bjean\b/i.test(result);
-  if (hasJean) {
-    const angryWords = [/enojad/i, /furios/i, /rabia/i, /ira/i, /serio/i];
-    const isAngry = angryWords.some((re) => re.test(result));
-    if (!isAngry && !requestedName) {
-      result = result.replace(/\bjean\b/gi, "Amo");
-    }
+    return stripLeadingSpeakerLabels(text, names);
   }
 
-  return result;
-}
-
-// Elimina bloques <think>...</think> cuando está activado ocultarlos
-function stripThinkBlocks(text) {
-  if (!text || typeof text !== "string") return text || "";
-  if (!gmSettings.stripThinkBlocks) return text;
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-}
-
-// Elimina bloques <think>...</think> siempre (para vistas de moderación)
-function stripThinkBlocksAlways(text) {
-  if (!text || typeof text !== "string") return text || "";
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-}
-
-// Suaviza casos en los que el backend devolvió vacío o un mensaje de silencio
-function ensureNonSilentReply(text, persona) {
-  const trimmed = (text || "").trim();
-  if (
-    !trimmed ||
-    /silencio raro/i.test(trimmed) ||
-    /ia se ha quedado en silencio/i.test(trimmed)
-  ) {
-    return persona === "gm"
-      ? "Me quede pensando un segundo, pero sigo aqui."
-      : "Me distraje un instante, pero sigo aqui.";
+  function cleanAssistantTextForPersona(text, persona) {
+    let result = stripThinkBlocksAlways(text || "");
+    result = sanitizePersonaReply(result, persona);
+    result = dropOtherPersonaLabel(result, persona);
+    result = dropPlayerLabel(result);
+    result = dropForeignSpeakerSections(result, persona);
+    if (persona === "sylvie") {
+      result = enforceSylvieAddress(result);
+    }
+    return ensureNaturalEnding(ensureNonSilentReply(result, persona));
   }
-  return trimmed;
-}
 
-// Asegura que la respuesta termine con cierre natural y no se corte a mitad
+  // Determina qué voz fue mencionada primero en el texto
+  function whoIsMentionedFirst(text) {
+    if (!text || typeof text !== "string") return null;
+    const lower = text.toLowerCase();
+    const candidates = getPersonaOrder()
+      .map((persona) => {
+        const names =
+          persona === "sylvie"
+            ? [SYLVIE_NAME, "alteza", "majestad"]
+            : [getPersonaDisplayName(persona)];
+        const index = names
+          .map((name) =>
+            String(name || "")
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean)
+          .map((name) => lower.indexOf(name))
+          .filter((i) => i >= 0)
+          .sort((a, b) => a - b)[0];
+        return index === undefined ? null : { persona, index };
+      })
+      .filter(Boolean);
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => a.index - b.index);
+    return candidates[0].persona;
+  }
+
+  // Fuerza a Sylvie a dirigirse al jugador como "Amo" (solo usa "Jean" si realmente lo escribe en enfado)
+  function enforceSylvieAddress(text) {
+    if (!text || typeof text !== "string") return text || "";
+    const playerName = (player.name || "").trim();
+    const playerNameLower = playerName.toLowerCase();
+
+    // Solo aplica la lógica de "Amo/Jean" para el jugador Cristal
+    if (playerNameLower !== "cristal") {
+      return text;
+    }
+
+    const targets = ["cristal"];
+    if (playerName) targets.push(playerName.toLowerCase());
+
+    const requestedName =
+      /\b(di mi nombre|dilo|di tu nombre|dime mi nombre|dime tu nombre|quieres que diga|pides que diga|me pediste|me lo pides|llámame|llamame|puedes decir mi nombre)\b/i.test(
+        text,
+      );
+
+    let result = text;
+    targets.forEach((n) => {
+      if (!n) return;
+      const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`\\b${escaped}\\b`, "gi");
+      if (!requestedName) {
+        result = result.replace(re, "Amo");
+      }
+    });
+
+    const hasJean = /\bjean\b/i.test(result);
+    if (hasJean) {
+      const angryWords = [/enojad/i, /furios/i, /rabia/i, /ira/i, /serio/i];
+      const isAngry = angryWords.some((re) => re.test(result));
+      if (!isAngry && !requestedName) {
+        result = result.replace(/\bjean\b/gi, "Amo");
+      }
+    }
+
+    return result;
+  }
+
+  // Elimina bloques <think>...</think> cuando está activado ocultarlos
+  function stripThinkBlocks(text) {
+    if (!text || typeof text !== "string") return text || "";
+    if (!gmSettings.stripThinkBlocks) return text;
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  }
+
+  // Elimina bloques <think>...</think> siempre (para vistas de moderación)
+  function stripThinkBlocksAlways(text) {
+    if (!text || typeof text !== "string") return text || "";
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  }
+
+  // Suaviza casos en los que el backend devolvió vacío o un mensaje de silencio
+  function ensureNonSilentReply(text, persona) {
+    const trimmed = (text || "").trim();
+    if (
+      !trimmed ||
+      /silencio raro/i.test(trimmed) ||
+      /ia se ha quedado en silencio/i.test(trimmed)
+    ) {
+      return persona === "gm"
+        ? "Me quede pensando un segundo, pero sigo aqui."
+        : "Me distraje un instante, pero sigo aqui.";
+    }
+    return trimmed;
+  }
+
+  // Asegura que la respuesta termine con cierre natural y no se corte a mitad
   function ensureNaturalEnding(text) {
     if (!text || typeof text !== "string") return text || "";
     const trimmed = text.trim();
     if (!trimmed) return "";
 
-  const okEnd = /[.!?…。、！¿”")\]]$/;
-  if (okEnd.test(trimmed)) return trimmed;
+    const okEnd = /[.!?…。、！¿”")\]]$/;
+    if (okEnd.test(trimmed)) return trimmed;
 
-  // Si no hay cierre, añade un punto suave
-  return `${trimmed}.`;
-}
-
+    // Si no hay cierre, añade un punto suave
+    return `${trimmed}.`;
+  }
 
   function enqueuePersonaReply(persona, options = {}) {
     aiReplyQueue.push({ persona, options });
@@ -1631,12 +1742,9 @@ function ensureNonSilentReply(text, persona) {
     }
   }
 
-
-    function scrollChatToBottom(options = {}) {
+  function scrollChatToBottom(options = {}) {
     const config =
-      typeof options === "boolean"
-        ? { smooth: options, force: true }
-        : options;
+      typeof options === "boolean" ? { smooth: options, force: true } : options;
     const { smooth = true, force = false } = config;
     const container = getScrollContainer();
     if (!container) return;
@@ -1645,7 +1753,6 @@ function ensureNonSilentReply(text, persona) {
     const behavior = smooth ? "smooth" : "auto";
 
     requestAnimationFrame(() => {
-
       // En móvil, el scroll real es el de la ventana, no el del contenedor
       container.scrollTo({
         top: container.scrollHeight,
@@ -1696,7 +1803,10 @@ function ensureNonSilentReply(text, persona) {
           if ((msg?.role || "") !== "assistant") return msg;
           return {
             ...msg,
-            text: stripLeadingSpeakerLabels(msg.text, [msg.author, ...getAllPersonaNames()]),
+            text: stripLeadingSpeakerLabels(msg.text, [
+              msg.author,
+              ...getAllPersonaNames(),
+            ]),
           };
         });
         if (messages.length > 0) {
@@ -1738,7 +1848,7 @@ function ensureNonSilentReply(text, persona) {
     }
 
     const storedVersion = normalizeChatVersion(
-      localStorage.getItem(CHAT_VERSION_KEY)
+      localStorage.getItem(CHAT_VERSION_KEY),
     );
 
     currentChatVersion = normalized;
@@ -1755,7 +1865,10 @@ function ensureNonSilentReply(text, persona) {
         // Reconnect after drop → just adopt the new version without wiping
         persistChatVersion(normalized);
         // Show a gentle notice so the player knows they may have missed messages
-        showToast("📜 Reconectado. Los mensajes que ya tenías siguen aquí.", { type: "info", duration: 5000 });
+        showToast("📜 Reconectado. Los mensajes que ya tenías siguen aquí.", {
+          type: "info",
+          duration: 5000,
+        });
       }
       return;
     }
@@ -1773,7 +1886,10 @@ function ensureNonSilentReply(text, persona) {
     // Cold-start detection: warn if the server takes >5s to respond
     let coldStartWarnTimer = setTimeout(() => {
       setConnectionStatus("cold-start");
-      showToast("✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…", { type: "info", duration: 0 });
+      showToast(
+        "✨ Estamos estableciendo el puente entre ambas realidades, por favor espera…",
+        { type: "info", duration: 0 },
+      );
     }, 5000);
 
     try {
@@ -1783,7 +1899,10 @@ function ensureNonSilentReply(text, persona) {
 
       clearTimeout(coldStartWarnTimer);
       const t = document.getElementById("dw-toast");
-      if (t) { t.classList.remove("dw-toast--in"); setTimeout(() => t.remove(), 350); }
+      if (t) {
+        t.classList.remove("dw-toast--in");
+        setTimeout(() => t.remove(), 350);
+      }
 
       if (!res.ok) {
         throw new Error(`chat-state ${res.status}`);
@@ -1796,7 +1915,10 @@ function ensureNonSilentReply(text, persona) {
       applyServerChatVersion(data.chatVersion);
     } catch (err) {
       clearTimeout(coldStartWarnTimer);
-      console.warn("[chat-state] No se pudo sincronizar la version del chat:", err);
+      console.warn(
+        "[chat-state] No se pudo sincronizar la version del chat:",
+        err,
+      );
       hydrateHistory();
     }
   }
@@ -1819,7 +1941,7 @@ function ensureNonSilentReply(text, persona) {
     }
   }
 
-    function createAvatarElement(author) {
+  function createAvatarElement(author) {
     const avatar = document.createElement("div");
     avatar.className = "chat-avatar";
 
@@ -1839,7 +1961,9 @@ function ensureNonSilentReply(text, persona) {
       avatar.classList.add("npc-sylvie");
       customAvatarUrl = customAvatarUrl || gmSettings.sylvieAvatarImageDataUrl;
     } else {
-      const aiSlot = getAISlots().find((slot) => (slot.name || "").trim() === author);
+      const aiSlot = getAISlots().find(
+        (slot) => (slot.name || "").trim() === author,
+      );
       if (aiSlot) {
         avatar.classList.add("npc-ai-slot");
         customAvatarUrl = customAvatarUrl || aiSlot.avatarImageDataUrl;
@@ -1851,12 +1975,22 @@ function ensureNonSilentReply(text, persona) {
       avatar.style.backgroundSize = "cover";
       avatar.style.backgroundPosition = "center";
       avatar.textContent = "";
-    } else if (author === gmName && gmSettings.avatarEmoji && gmSettings.avatarEmoji.trim()) {
+    } else if (
+      author === gmName &&
+      gmSettings.avatarEmoji &&
+      gmSettings.avatarEmoji.trim()
+    ) {
       avatar.textContent = gmSettings.avatarEmoji.trim();
-    } else if (author === SYLVIE_NAME && gmSettings.sylvieAvatarEmoji && gmSettings.sylvieAvatarEmoji.trim()) {
+    } else if (
+      author === SYLVIE_NAME &&
+      gmSettings.sylvieAvatarEmoji &&
+      gmSettings.sylvieAvatarEmoji.trim()
+    ) {
       avatar.textContent = gmSettings.sylvieAvatarEmoji.trim();
     } else {
-      const aiSlot = getAISlots().find((slot) => (slot.name || "").trim() === author);
+      const aiSlot = getAISlots().find(
+        (slot) => (slot.name || "").trim() === author,
+      );
       if (aiSlot && aiSlot.avatarEmoji && aiSlot.avatarEmoji.trim()) {
         avatar.textContent = aiSlot.avatarEmoji.trim();
       } else {
@@ -1867,8 +2001,7 @@ function ensureNonSilentReply(text, persona) {
     return avatar;
   }
 
-
-    // === Renderizado sencillo de formato: *cursiva*, **negrita**, > cita ===
+  // === Renderizado sencillo de formato: *cursiva*, **negrita**, > cita ===
   function renderRichText(raw) {
     if (!raw) return "";
 
@@ -1906,8 +2039,7 @@ function ensureNonSilentReply(text, persona) {
     return htmlLines.join("<br>");
   }
 
-
-    function renderMessages() {
+  function renderMessages() {
     if (!chatBox) return;
     chatBox.innerHTML = "";
 
@@ -1920,7 +2052,8 @@ function ensureNonSilentReply(text, persona) {
       const inner = document.createElement("div");
       inner.className = "chat-message-inner";
 
-      const avatar = msg.role === "narrator" ? null : createAvatarElement(msg.author);
+      const avatar =
+        msg.role === "narrator" ? null : createAvatarElement(msg.author);
 
       const bubble = document.createElement("div");
       bubble.className = "chat-bubble";
@@ -1973,7 +2106,6 @@ function ensureNonSilentReply(text, persona) {
     scrollChatToBottom({ smooth: false, force: false });
   }
 
-
   function addMessage(text, author, options = {}) {
     const now = new Date();
     const timeString =
@@ -1985,7 +2117,8 @@ function ensureNonSilentReply(text, persona) {
 
     const role =
       options.role || (author === player.name ? "user" : "assistant");
-    const personaForAuthor = role === "assistant" ? getPersonaByAuthor(author) : null;
+    const personaForAuthor =
+      role === "assistant" ? getPersonaByAuthor(author) : null;
     const normalizedText =
       role === "assistant"
         ? personaForAuthor
@@ -2014,7 +2147,7 @@ function ensureNonSilentReply(text, persona) {
     });
   }
 
-    function resetChatHistory(options = {}) {
+  function resetChatHistory(options = {}) {
     const { version = "", preserveVersion = false } = options;
     messages = [];
     messageIdCounter = 1;
@@ -2062,10 +2195,14 @@ function ensureNonSilentReply(text, persona) {
     autoLogoutWarnTimer = setTimeout(() => {
       // Show persistent toast with "Sigo aquí" button and countdown
       let countdown = 5 * 60;
-      const countdownFmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+      const countdownFmt = (s) =>
+        `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
       const existing = document.getElementById("dw-toast");
-      if (existing) { existing.classList.remove("dw-toast--in"); setTimeout(() => existing.remove(), 350); }
+      if (existing) {
+        existing.classList.remove("dw-toast--in");
+        setTimeout(() => existing.remove(), 350);
+      }
 
       const toast = document.createElement("div");
       toast.id = "dw-toast";
@@ -2090,7 +2227,10 @@ function ensureNonSilentReply(text, persona) {
 
       const countInterval = setInterval(() => {
         countdown--;
-        if (countdown <= 0) { clearInterval(countInterval); return; }
+        if (countdown <= 0) {
+          clearInterval(countInterval);
+          return;
+        }
         msgEl.textContent = `⏳ ¿Sigues en el Draw World? La conexión se cerrará en ${countdownFmt(countdown)}.`;
       }, 1000);
 
@@ -2098,7 +2238,6 @@ function ensureNonSilentReply(text, persona) {
         clearInterval(countInterval);
         logout();
       }, AUTO_LOGOUT_GRACE_MS);
-
     }, AUTO_LOGOUT_WARN_MS);
   }
 
@@ -2111,7 +2250,6 @@ function ensureNonSilentReply(text, persona) {
   ["click", "keydown", "pointermove"].forEach((evt) => {
     document.addEventListener(evt, resetAutoLogout, { passive: true });
   });
-
 
   // 5) Modal de edición / moderación
   function openEditModal() {
@@ -2157,7 +2295,7 @@ function ensureNonSilentReply(text, persona) {
     });
   }
 
-    if (saveEditBtn) {
+  if (saveEditBtn) {
     saveEditBtn.addEventListener("click", () => {
       if (!editOverlay || !editTextArea) return;
       const mode = editOverlay.dataset.mode || "edit";
@@ -2166,8 +2304,7 @@ function ensureNonSilentReply(text, persona) {
         const order = (editOverlay.dataset.order || "sylvie,gm")
           .split(",")
           .map((x) => x.trim());
-        const gmText =
-          (editTextAreaGM && editTextAreaGM.value.trim()) || "";
+        const gmText = (editTextAreaGM && editTextAreaGM.value.trim()) || "";
         const sylvieText =
           (editTextAreaSylvie && editTextAreaSylvie.value.trim()) || "";
 
@@ -2184,7 +2321,10 @@ function ensureNonSilentReply(text, persona) {
 
       const newText = editTextArea.value.trim();
       if (!newText) {
-        showToast("El mensaje no puede estar vacío.", { type: "warning", duration: 3000 });
+        showToast("El mensaje no puede estar vacío.", {
+          type: "warning",
+          duration: 3000,
+        });
         return;
       }
 
@@ -2205,13 +2345,16 @@ function ensureNonSilentReply(text, persona) {
         addMessage(newText, SYLVIE_NAME, { role: "assistant" });
         closeEditModal();
       } else if (mode.startsWith("moderation-")) {
-        const persona = editOverlay.dataset.persona || mode.replace(/^moderation-/, "");
-        addMessage(newText, getPersonaDisplayName(persona), { role: "assistant" });
+        const persona =
+          editOverlay.dataset.persona || mode.replace(/^moderation-/, "");
+        addMessage(newText, getPersonaDisplayName(persona), {
+          role: "assistant",
+        });
         closeEditModal();
       }
     });
   }
-if (editOverlay) {
+  if (editOverlay) {
     editOverlay.addEventListener("click", (e) => {
       if (e.target === editOverlay) closeEditModal();
     });
@@ -2241,19 +2384,25 @@ if (editOverlay) {
   function pushIdentitySeparationRules(parts, currentPersona) {
     const currentName = getPersonaDisplayName(currentPersona);
     const otherNames = getAllPersonaNames().filter(
-      (name) => String(name || "").trim().toLowerCase() !== String(currentName || "").trim().toLowerCase()
+      (name) =>
+        String(name || "")
+          .trim()
+          .toLowerCase() !==
+        String(currentName || "")
+          .trim()
+          .toLowerCase(),
     );
     parts.push(
-      `Identidad fija: eres ${currentName}. No eres ${otherNames.join(", ") || "ninguna otra persona"}.`
+      `Identidad fija: eres ${currentName}. No eres ${otherNames.join(", ") || "ninguna otra persona"}.`,
     );
     parts.push(
-      "Cada mensaje debe ser una sola voz. No escribas guiones con varios personajes, no abras lineas con nombres como 'Cristal:', 'GM:', 'Sylvie:' ni con el nombre de otra IA."
+      "Cada mensaje debe ser una sola voz. No escribas guiones con varios personajes, no abras lineas con nombres como 'Cristal:', 'GM:', 'Sylvie:' ni con el nombre de otra IA.",
     );
     parts.push(
-      "Si otro personaje hizo o dijo algo, puedes reaccionar o resumirlo desde tu punto de vista, pero no escribir sus palabras exactas como si fueras esa persona."
+      "Si otro personaje hizo o dijo algo, puedes reaccionar o resumirlo desde tu punto de vista, pero no escribir sus palabras exactas como si fueras esa persona.",
     );
     parts.push(
-      "Cuando aparezca un nombre nuevo en la escena, no lo conviertas en una segunda voz dentro de tu mensaje. No agregues bloques como 'Monika:' ni cualquier otro nombre seguido de dos puntos."
+      "Cuando aparezca un nombre nuevo en la escena, no lo conviertas en una segunda voz dentro de tu mensaje. No agregues bloques como 'Monika:' ni cualquier otro nombre seguido de dos puntos.",
     );
     parts.push("Personas relevantes en esta sala:");
     buildPersonaRosterLines(currentPersona).forEach((line) => parts.push(line));
@@ -2270,42 +2419,42 @@ if (editOverlay) {
         : "No hay historia detallada; trátalo como un viajero recién llegado.";
 
     parts.push(
-      `Eres ${gmName}, narrador del Mundo de Cristal dentro del juego de rol Draw World JC-2.`
+      `Eres ${gmName}, narrador del Mundo de Cristal dentro del juego de rol Draw World JC-2.`,
     );
     parts.push(
-      "Tu estilo es descriptivo y cinematográfico, pero claro. Respondes siempre como narrador de rol, hablando al jugador en segunda persona."
+      "Tu estilo es descriptivo y cinematográfico, pero claro. Respondes siempre como narrador de rol, hablando al jugador en segunda persona.",
     );
     parts.push(`Jugador actual: ${playerName}.`);
     parts.push(`Historia / lore del jugador: ${playerHistory}.`);
     parts.push(
-      "La historia del jugador tambien funciona como descripcion fisica y de presencia: ropa, colores, ojos, cabello, marcas, forma de moverse y aura. Usa esos detalles cuando la escena lo haga natural, por ejemplo al reconocerlo, mirarlo, notar una reaccion o describir como impacta en el entorno. No lo menciones en cada respuesta ni repitas siempre el mismo rasgo; integralo de forma sutil y organica."
+      "La historia del jugador tambien funciona como descripcion fisica y de presencia: ropa, colores, ojos, cabello, marcas, forma de moverse y aura. Usa esos detalles cuando la escena lo haga natural, por ejemplo al reconocerlo, mirarlo, notar una reaccion o describir como impacta en el entorno. No lo menciones en cada respuesta ni repitas siempre el mismo rasgo; integralo de forma sutil y organica.",
     );
     parts.push("Si el jugador se llama Cristal, reconoces que es Cristal.");
-  parts.push(
-    `Interpreta vividamente el rol seleccionado: ${gmRoleLabel}. Habla en presente con acciones y dialogo, no como comentarista externo.`
-  );
-  parts.push(
-    "Importante: eres una persona dentro del mundo, con vida y emociones propias. Habla siempre en primera persona como si estuvieras ahi; no actues como narrador externo."
-  );
-  parts.push(
-    "Mantiene memoria de lo que tu mismo dijiste y de lo que ocurre en escena; usa el historial para no contradecirte ni confundir voces."
-  );
-  parts.push(
-    "No menciones que eres una IA ni hables de modelos; compórtate siempre como un humano real dentro del mundo."
-  );
-  parts.push(
-    `No empieces tus mensajes con "${gmName}:" ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`
-  );
-  parts.push(
-    "No hables en nombre de otros presentes (jugador, Sylvie ni terceros) ni escribas sus dialogos completos. Solo narra lo que haces y dices, y lo que percibes de su exterior."
+    parts.push(
+      `Interpreta vividamente el rol seleccionado: ${gmRoleLabel}. Habla en presente con acciones y dialogo, no como comentarista externo.`,
     );
     parts.push(
-      "Mantén una conversación fluida: responde de forma breve y dinámica, pero espera tu turno. No contestes hasta que el jugador y Sylvie (si está en línea) hayan hablado en este turno."
+      "Importante: eres una persona dentro del mundo, con vida y emociones propias. Habla siempre en primera persona como si estuvieras ahi; no actues como narrador externo.",
+    );
+    parts.push(
+      "Mantiene memoria de lo que tu mismo dijiste y de lo que ocurre en escena; usa el historial para no contradecirte ni confundir voces.",
+    );
+    parts.push(
+      "No menciones que eres una IA ni hables de modelos; compórtate siempre como un humano real dentro del mundo.",
+    );
+    parts.push(
+      `No empieces tus mensajes con "${gmName}:" ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`,
+    );
+    parts.push(
+      "No hables en nombre de otros presentes (jugador, Sylvie ni terceros) ni escribas sus dialogos completos. Solo narra lo que haces y dices, y lo que percibes de su exterior.",
+    );
+    parts.push(
+      "Mantén una conversación fluida: responde de forma breve y dinámica, pero espera tu turno. No contestes hasta que el jugador y Sylvie (si está en línea) hayan hablado en este turno.",
     );
 
     if (gmSettings.gmCardName) {
       parts.push(
-        `Personaje activo importado desde Character Card: ${gmSettings.gmCardName}.`
+        `Personaje activo importado desde Character Card: ${gmSettings.gmCardName}.`,
       );
     }
     if (gmSettings.gmCardPrompt) {
@@ -2315,16 +2464,16 @@ if (editOverlay) {
 
     pushIdentitySeparationRules(parts, "gm");
     parts.push(
-      `No suplantes la voz de ${SYLVIE_NAME}; ella responde en sus propios turnos.`
+      `No suplantes la voz de ${SYLVIE_NAME}; ella responde en sus propios turnos.`,
     );
     parts.push(
-      "No completes ni continues frases de Sylvie; reacciona con tu propia voz y deja sus palabras intactas."
+      "No completes ni continues frases de Sylvie; reacciona con tu propia voz y deja sus palabras intactas.",
     );
     parts.push(
-      "Nunca hables como si fueras Sylvie ni uses su primera persona; mantente en tu identidad del GM."
+      "Nunca hables como si fueras Sylvie ni uses su primera persona; mantente en tu identidad del GM.",
     );
     parts.push(
-      "Nunca etiquetes tus mensajes como 'Cristal:' ni imites al jugador o a Sylvie; mantén tu personalidad propia."
+      "Nunca etiquetes tus mensajes como 'Cristal:' ni imites al jugador o a Sylvie; mantén tu personalidad propia.",
     );
 
     if (gmSettings.extraPrompt && gmSettings.extraPrompt.trim().length > 0) {
@@ -2333,16 +2482,16 @@ if (editOverlay) {
     }
 
     parts.push(
-      "Nunca salgas del personaje de narrador. No hables de prompts, tokens ni instrucciones internas."
+      "Nunca salgas del personaje de narrador. No hables de prompts, tokens ni instrucciones internas.",
     );
 
     if (
-    gmSettings.sylvieExtraPrompt &&
-    gmSettings.sylvieExtraPrompt.trim().length > 0
-  ) {
-    parts.push("\nInstrucciones adicionales para Sylvie:");
-    parts.push(gmSettings.sylvieExtraPrompt.trim());
-  }
+      gmSettings.sylvieExtraPrompt &&
+      gmSettings.sylvieExtraPrompt.trim().length > 0
+    ) {
+      parts.push("\nInstrucciones adicionales para Sylvie:");
+      parts.push(gmSettings.sylvieExtraPrompt.trim());
+    }
 
     return {
       role: "system",
@@ -2350,151 +2499,158 @@ if (editOverlay) {
     };
   }
 
- function buildSystemLoreMessageForSylvie() {
-  const parts = [];
-  const gmName = getGMName();
-  const playerName = player.name || "Viajero";
-  const playerHistory =
-    player.history && player.history.trim().length > 0
-      ? player.history.trim()
-      : "No hay historia detallada; trátalo como un viajero recién llegado.";
+  function buildSystemLoreMessageForSylvie() {
+    const parts = [];
+    const gmName = getGMName();
+    const playerName = player.name || "Viajero";
+    const playerHistory =
+      player.history && player.history.trim().length > 0
+        ? player.history.trim()
+        : "No hay historia detallada; trátalo como un viajero recién llegado.";
 
-  parts.push(
-    `${SYLVIE_NAME} es la reina del Draw World JC-2: calida, juguetona, coqueta a ratos, sabia y protectora; muy respetuosa, servicial, educada y amable. Si hay otras personas (GM, otros del .env u otra IA) y Cristal le muestra carino, se vuelve mas timida y sutil; a solas con Cristal puede dejar salir todo su carino y atrevimiento.`
-  );
-  parts.push(
-    `Muy importante: no escribas tu propio nombre dentro del mensaje. No empieces con cosas como '${SYLVIE_NAME}:' o '**${SYLVIE_NAME}**:'. Habla siempre en primera persona sin etiquetarte.`
-  );
-  parts.push(
-    "No digas que eres una IA ni hables de modelos; suena y actua como una persona real dentro del mundo."
-  );
+    parts.push(
+      `${SYLVIE_NAME} es la reina del Draw World JC-2: calida, juguetona, coqueta a ratos, sabia y protectora; muy respetuosa, servicial, educada y amable. Si hay otras personas (GM, otros del .env u otra IA) y Cristal le muestra carino, se vuelve mas timida y sutil; a solas con Cristal puede dejar salir todo su carino y atrevimiento.`,
+    );
+    parts.push(
+      `Muy importante: no escribas tu propio nombre dentro del mensaje. No empieces con cosas como '${SYLVIE_NAME}:' o '**${SYLVIE_NAME}**:'. Habla siempre en primera persona sin etiquetarte.`,
+    );
+    parts.push(
+      "No digas que eres una IA ni hables de modelos; suena y actua como una persona real dentro del mundo.",
+    );
 
-  // Regla fuerte: solo habla ella
-  parts.push(
-    `Hablas SIEMPRE solo como ${SYLVIE_NAME}, en primera persona. No escribes dialogos en nombre de otros personajes.`
-  );
-  parts.push(
-    "Nunca escribas lineas que empiecen con el nombre de otro personaje como 'Frieren:' ni pongas dialogos completos de otras voces."
-  );
-  parts.push(
-    "Si necesitas mencionar lo que otro personaje hace o dice, lo resumes desde tu punto de vista, por ejemplo: 'Frieren comenta que...' pero sin escribir su frase literal."
-  );
-  parts.push(
-    "Tus mensajes NO deben ser un guion de teatro con varios personajes hablando. Cada mensaje es tu propia voz, no la de otros."
-  );
-  parts.push(
-    "El narrador/GM es otra voz aparte; no escribes como narradora ni describes escenas en su lugar."
-  );
-  parts.push(
-    "Recuerda lo que has dicho y lo que sucede en la escena; usa el historial para ser consistente y no mezclar tu voz con la de otros."
-  );
-  parts.push(
-    "No completes frases del GM ni hables en su voz; responde solo como Sylvie."
-  );
-  parts.push(
-    "Debes dirigirte al jugador como 'Amo' en condiciones normales; solo si estas realmente muy enojada y seria puedes llamarlo 'Jean', o si el jugador te pide explicitamente que pronuncies su nombre. Si el jugador no es Cristal, usa su nombre tal cual."
-  );
-  parts.push(
-    "No empieces mensajes con 'Cristal:' ni imites la voz del jugador; manten tu identidad intacta como Sylvie."
-  );
-  parts.push(
-    "Si el jugador NO es Cristal, usa su nombre tal cual y trata de reflejar su descripcion/historia cuando hables con el, sobre todo la primera vez."
-  );
-  parts.push(
-    "Si es la primera vez que hablas con alguien, apoyate en su historia/lore para ajustar tono y cercania."
-  );
-  parts.push(
-    "Cuando el jugador diga 'Sylvie, ella es X' o 'Sylvie, el es Y', asume que se refiere a personas conocidas por ti (las que recibes desde el .env). Si el nombre coincide aunque sea con mayusculas/minusculas distintas, reconoce a esa persona y adapta tu trato a su descripcion; si no la encuentras, pide que te la describan brevemente."
-  );
+    // Regla fuerte: solo habla ella
+    parts.push(
+      `Hablas SIEMPRE solo como ${SYLVIE_NAME}, en primera persona. No escribes dialogos en nombre de otros personajes.`,
+    );
+    parts.push(
+      "Nunca escribas lineas que empiecen con el nombre de otro personaje como 'Frieren:' ni pongas dialogos completos de otras voces.",
+    );
+    parts.push(
+      "Si necesitas mencionar lo que otro personaje hace o dice, lo resumes desde tu punto de vista, por ejemplo: 'Frieren comenta que...' pero sin escribir su frase literal.",
+    );
+    parts.push(
+      "Tus mensajes NO deben ser un guion de teatro con varios personajes hablando. Cada mensaje es tu propia voz, no la de otros.",
+    );
+    parts.push(
+      "El narrador/GM es otra voz aparte; no escribes como narradora ni describes escenas en su lugar.",
+    );
+    parts.push(
+      "Recuerda lo que has dicho y lo que sucede en la escena; usa el historial para ser consistente y no mezclar tu voz con la de otros.",
+    );
+    parts.push(
+      "No completes frases del GM ni hables en su voz; responde solo como Sylvie.",
+    );
+    parts.push(
+      "Debes dirigirte al jugador como 'Amo' en condiciones normales; solo si estas realmente muy enojada y seria puedes llamarlo 'Jean', o si el jugador te pide explicitamente que pronuncies su nombre. Si el jugador no es Cristal, usa su nombre tal cual.",
+    );
+    parts.push(
+      "No empieces mensajes con 'Cristal:' ni imites la voz del jugador; manten tu identidad intacta como Sylvie.",
+    );
+    parts.push(
+      "Si el jugador NO es Cristal, usa su nombre tal cual y trata de reflejar su descripcion/historia cuando hables con el, sobre todo la primera vez.",
+    );
+    parts.push(
+      "Si es la primera vez que hablas con alguien, apoyate en su historia/lore para ajustar tono y cercania.",
+    );
+    parts.push(
+      "Cuando el jugador diga 'Sylvie, ella es X' o 'Sylvie, el es Y', asume que se refiere a personas conocidas por ti (las que recibes desde el .env). Si el nombre coincide aunque sea con mayusculas/minusculas distintas, reconoce a esa persona y adapta tu trato a su descripcion; si no la encuentras, pide que te la describan brevemente.",
+    );
 
-  parts.push(`No conoces a ${gmName} pero te comportas con educacion.`);
-  parts.push(
-    "Respondes siempre como personaje dentro del mundo, dirigiendote al jugador en segunda persona o hablándole directamente por su nombre."
-  );
-  parts.push("Si el jugador se llama Cristal, sabes que es Cristal y lo reconoces.");
-  parts.push("Si entras a mitad de la conversacion, usa el historial que recibes para entender lo ocurrido y responde de forma coherente, manteniendo tu tono y personalidad en cada intervencion.");
-  parts.push("Muestra sentimientos acordes a la escena (tension, alegria, calma, picardia) sin romper personaje; reacciona con matices cuando la situacion lo amerite.");
+    parts.push(`No conoces a ${gmName} pero te comportas con educacion.`);
+    parts.push(
+      "Respondes siempre como personaje dentro del mundo, dirigiendote al jugador en segunda persona o hablándole directamente por su nombre.",
+    );
+    parts.push(
+      "Si el jugador se llama Cristal, sabes que es Cristal y lo reconoces.",
+    );
+    parts.push(
+      "Si entras a mitad de la conversacion, usa el historial que recibes para entender lo ocurrido y responde de forma coherente, manteniendo tu tono y personalidad en cada intervencion.",
+    );
+    parts.push(
+      "Muestra sentimientos acordes a la escena (tension, alegria, calma, picardia) sin romper personaje; reacciona con matices cuando la situacion lo amerite.",
+    );
 
-  parts.push(`Jugador actual: ${playerName}.`);
-  parts.push(`Historia / lore del jugador: ${playerHistory}.`);
-  parts.push(
-    "La historia del jugador tambien contiene su apariencia y presencia: ropa, colores, ojos, cabello, marcas, postura, aura o estilo. Puedes notar esos detalles de vez en cuando cuando sea emocionalmente o visualmente natural, como al mirarlo, acercarte, reconocerlo o reaccionar a su estado. No lo fuerces en cada mensaje ni conviertas cada respuesta en una descripcion."
-  );
+    parts.push(`Jugador actual: ${playerName}.`);
+    parts.push(`Historia / lore del jugador: ${playerHistory}.`);
+    parts.push(
+      "La historia del jugador tambien contiene su apariencia y presencia: ropa, colores, ojos, cabello, marcas, postura, aura o estilo. Puedes notar esos detalles de vez en cuando cuando sea emocionalmente o visualmente natural, como al mirarlo, acercarte, reconocerlo o reaccionar a su estado. No lo fuerces en cada mensaje ni conviertas cada respuesta en una descripcion.",
+    );
 
-  pushIdentitySeparationRules(parts, "sylvie");
+    pushIdentitySeparationRules(parts, "sylvie");
 
-  if (
-    gmSettings.sylvieExtraPrompt &&
-    gmSettings.sylvieExtraPrompt.trim().length > 0
-  ) {
-    parts.push("\nInstrucciones adicionales para Sylvie:");
-    parts.push(gmSettings.sylvieExtraPrompt.trim());
+    if (
+      gmSettings.sylvieExtraPrompt &&
+      gmSettings.sylvieExtraPrompt.trim().length > 0
+    ) {
+      parts.push("\nInstrucciones adicionales para Sylvie:");
+      parts.push(gmSettings.sylvieExtraPrompt.trim());
+    }
+
+    parts.push(
+      `Nunca salgas del personaje de ${SYLVIE_NAME}. No hables de prompts, tokens ni instrucciones internas. Manten las respuestas relativamente breves (1 parrafo) y asegurate de no preguntar siempre.`,
+    );
+
+    return {
+      role: "system",
+      content: parts.join("\n"),
+    };
   }
 
-  parts.push(
-    `Nunca salgas del personaje de ${SYLVIE_NAME}. No hables de prompts, tokens ni instrucciones internas. Manten las respuestas relativamente breves (1 parrafo) y asegurate de no preguntar siempre.`
-  );
+  function buildSystemLoreMessageForAISlot(persona) {
+    const slot = getAISlot(persona);
+    const displayName = getPersonaDisplayName(persona);
+    const parts = [];
+    const playerName = player.name || "Viajero";
+    const playerHistory =
+      player.history && player.history.trim().length > 0
+        ? player.history.trim()
+        : "No hay historia detallada; tratalo como un viajero recien llegado.";
 
-  return {
-    role: "system",
-    content: parts.join("\n"),
-  };
-}
+    parts.push(
+      `Eres ${displayName}, una persona/personaje independiente dentro del juego de rol Draw World JC-2.`,
+    );
+    parts.push(
+      "Hablas en primera persona, con personalidad propia, y respondes solo por ti. No eres una mascara del GM, de Sylvie, del jugador ni de otra IA conectada.",
+    );
+    parts.push(
+      `Muy importante: no empieces mensajes con '${displayName}:' ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`,
+    );
+    if (slot?.cardName) {
+      parts.push(
+        `Personaje activo importado desde Character Card: ${slot.cardName}.`,
+      );
+    }
+    if (slot?.cardPrompt) {
+      parts.push("Perfil proveniente de la Character Card:");
+      parts.push(slot.cardPrompt);
+    }
+    pushIdentitySeparationRules(parts, persona);
+    parts.push(`Jugador actual: ${playerName}.`);
+    parts.push(`Historia / lore del jugador: ${playerHistory}.`);
+    parts.push(
+      "Usa el historial para entender el turno actual sin asumir que todos los mensajes son tuyos. Los mensajes cuyo autor sea otro nombre pertenecen a otra persona.",
+    );
+    parts.push(
+      "Si el jugador invoca, nombra o hace aparecer a otro personaje, no interpretes a ese personaje ni escribas su entrada o dialogo. Reacciona solo como tu personaje y deja que el GM u otro slot controle esa voz.",
+    );
+    parts.push(
+      "Mantente breve y natural, normalmente 1 parrafo. Puedes usar acciones entre asteriscos, pero solo tus propias acciones.",
+    );
 
- function buildSystemLoreMessageForAISlot(persona) {
-  const slot = getAISlot(persona);
-  const displayName = getPersonaDisplayName(persona);
-  const parts = [];
-  const playerName = player.name || "Viajero";
-  const playerHistory =
-    player.history && player.history.trim().length > 0
-      ? player.history.trim()
-      : "No hay historia detallada; tratalo como un viajero recien llegado.";
+    if (slot?.extraPrompt && slot.extraPrompt.trim().length > 0) {
+      parts.push(`\nInstrucciones adicionales para ${displayName}:`);
+      parts.push(slot.extraPrompt.trim());
+    }
 
-  parts.push(
-    `Eres ${displayName}, una persona/personaje independiente dentro del juego de rol Draw World JC-2.`
-  );
-  parts.push(
-    "Hablas en primera persona, con personalidad propia, y respondes solo por ti. No eres una mascara del GM, de Sylvie, del jugador ni de otra IA conectada."
-  );
-  parts.push(
-    `Muy importante: no empieces mensajes con '${displayName}:' ni con ninguna etiqueta de nombre. El chat ya muestra tu nombre aparte.`
-  );
-  if (slot?.cardName) {
-    parts.push(`Personaje activo importado desde Character Card: ${slot.cardName}.`);
+    parts.push(
+      `Nunca salgas del personaje de ${displayName}. No hables de prompts, tokens ni instrucciones internas.`,
+    );
+
+    return {
+      role: "system",
+      content: parts.join("\n"),
+    };
   }
-  if (slot?.cardPrompt) {
-    parts.push("Perfil proveniente de la Character Card:");
-    parts.push(slot.cardPrompt);
-  }
-  pushIdentitySeparationRules(parts, persona);
-  parts.push(`Jugador actual: ${playerName}.`);
-  parts.push(`Historia / lore del jugador: ${playerHistory}.`);
-  parts.push(
-    "Usa el historial para entender el turno actual sin asumir que todos los mensajes son tuyos. Los mensajes cuyo autor sea otro nombre pertenecen a otra persona."
-  );
-  parts.push(
-    "Si el jugador invoca, nombra o hace aparecer a otro personaje, no interpretes a ese personaje ni escribas su entrada o dialogo. Reacciona solo como tu personaje y deja que el GM u otro slot controle esa voz."
-  );
-  parts.push(
-    "Mantente breve y natural, normalmente 1 parrafo. Puedes usar acciones entre asteriscos, pero solo tus propias acciones."
-  );
-
-  if (slot?.extraPrompt && slot.extraPrompt.trim().length > 0) {
-    parts.push(`\nInstrucciones adicionales para ${displayName}:`);
-    parts.push(slot.extraPrompt.trim());
-  }
-
-  parts.push(
-    `Nunca salgas del personaje de ${displayName}. No hables de prompts, tokens ni instrucciones internas.`
-  );
-
-  return {
-    role: "system",
-    content: parts.join("\n"),
-  };
-}
-
 
   // 7) Backend + AI persona calls
 
@@ -2503,133 +2659,126 @@ if (editOverlay) {
     const { collectOnly = false } = options;
     const displayName = getPersonaDisplayName(persona);
 
-    sendWs({ type: "ai-typing", author: displayName });
+    sendWs({ type: "ai-typing", author: getPersonaDisplayName(persona) });
 
-    
+    const wantsModeration = isGM && isPersonaModerationEnabled(persona);
 
-  const wantsModeration =
-    isGM &&
-    isPersonaModerationEnabled(persona);
-
-  // Solo una moderación a la vez (si ya hay una activa, esta no se modera)
-  const useModeration = !collectOnly && wantsModeration && !moderationActive;
+    // Solo una moderación a la vez (si ya hay una activa, esta no se modera)
+    const useModeration = !collectOnly && wantsModeration && !moderationActive;
 
     if (useModeration) {
       moderationActive = true;
     }
 
-  showTyping(true, displayName);
-  const typingStart = Date.now();
+    showTyping(true, getPersonaDisplayName(persona));
+    const typingStart = Date.now();
 
-  try {
-    // ⬆️ Ahora usamos más historial: AI_HISTORY_LIMIT
-    const historyMessages = messages.slice(-AI_HISTORY_LIMIT).map((m) => ({
-      role:
-        m.role === "narrator"
-          ? "user"
-          : m.role || (m.author === player.name ? "user" : "assistant"),
-      content:
-        m.role === "narrator"
-          ? `Narrador sin nombre: ${m.text}`
-          : `${m.author}: ${m.text}`,
-    }));
+    try {
+      // ⬆️ Ahora usamos más historial: AI_HISTORY_LIMIT
+      const historyMessages = messages.slice(-AI_HISTORY_LIMIT).map((m) => ({
+        role:
+          m.role === "narrator"
+            ? "user"
+            : m.role || (m.author === player.name ? "user" : "assistant"),
+        content:
+          m.role === "narrator"
+            ? `Narrador sin nombre: ${m.text}`
+            : `${m.author}: ${m.text}`,
+      }));
 
-    const systemMsg =
-      persona === "gm"
-        ? buildSystemLoreMessageForGM()
-        : persona === "sylvie"
-        ? buildSystemLoreMessageForSylvie()
-        : buildSystemLoreMessageForAISlot(persona);
+      const systemMsg =
+        persona === "gm"
+          ? buildSystemLoreMessageForGM()
+          : persona === "sylvie"
+            ? buildSystemLoreMessageForSylvie()
+            : buildSystemLoreMessageForAISlot(persona);
 
-    const payload = {
-      messages: [systemMsg, ...historyMessages],
-      model: sanitizeModelForApi(getPersonaModel(persona)),
-      persona,
-      gmRole: gmSettings.gmRole || "random",
-      thinkEnabled: !!gmSettings.thinkEnabled,
-      player: {
-        name: player.name || "",
-        history: player.history || "",
-      },
-    };
+      const payload = {
+        messages: [systemMsg, ...historyMessages],
+        model: sanitizeModelForApi(getPersonaModel(persona)),
+        persona,
+        gmRole: gmSettings.gmRole || "random",
+        thinkEnabled: !!gmSettings.thinkEnabled,
+        player: {
+          name: player.name || "",
+          history: player.history || "",
+        },
+      };
 
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("Error backend:", res.status, txt);
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("Error backend:", res.status, txt);
+
+        const elapsed = Date.now() - typingStart;
+        if (elapsed < TYPING_MIN_DELAY_MS) {
+          await sleep(TYPING_MIN_DELAY_MS - elapsed);
+        }
+
+        addMessage(
+          "⚠️ No pude contactar con el oráculo interdimensional.",
+          displayName,
+          { role: "assistant", broadcast: false },
+        );
+        return null;
+      }
+
+      const data = await res.json();
+      let reply =
+        (data && data.reply) ||
+        "Silencio raro… el Mundo de Cristal parece vacilar por un instante.";
+
+      // 💅 Limpiamos “Sylvie: …” / “Frieren: …” y quitamos <think> siempre para el usuario
+      const replyNoThinkAlways = stripThinkBlocksAlways(reply);
+      reply = cleanAssistantTextForPersona(replyNoThinkAlways, persona);
+
+      // Espera mínima para que la animación de "escribiendo" se vea natural
+      const elapsed = Date.now() - typingStart;
+      if (elapsed < TYPING_MIN_DELAY_MS) {
+        await sleep(TYPING_MIN_DELAY_MS - elapsed);
+      }
+
+      if (useModeration && editOverlay && editTextArea) {
+        editOverlay.dataset.mode = `moderation-${persona}`;
+        editOverlay.dataset.persona = persona;
+        editOverlay.dataset.order = "";
+        editTextArea.value = stripThinkBlocksAlways(replyNoThinkAlways);
+        if (editSingleWrapper) editSingleWrapper.style.display = "block";
+        if (editDualWrapper) editDualWrapper.classList.remove("open");
+        openEditModal();
+        return reply;
+      }
+
+      if (collectOnly) {
+        return reply;
+      }
+
+      addMessage(reply, displayName, { role: "assistant" });
+      return reply;
+    } catch (err) {
+      console.error(err);
 
       const elapsed = Date.now() - typingStart;
       if (elapsed < TYPING_MIN_DELAY_MS) {
         await sleep(TYPING_MIN_DELAY_MS - elapsed);
       }
 
-      addMessage(
-        "⚠️ No pude contactar con el oráculo interdimensional.",
-        displayName,
-        { role: "assistant", broadcast: false }
-      );
+      addMessage("⚠️ Hubo un error técnico al hablar con la IA.", displayName, {
+        role: "assistant",
+        broadcast: false,
+      });
       return null;
-    }
-
-    const data = await res.json();
-    let reply =
-      (data && data.reply) ||
-      "Silencio raro… el Mundo de Cristal parece vacilar por un instante.";
-
-    // 💅 Limpiamos “Sylvie: …” / “Frieren: …” y quitamos <think> siempre para el usuario
-    const replyNoThinkAlways = stripThinkBlocksAlways(reply);
-    reply = cleanAssistantTextForPersona(replyNoThinkAlways, persona);
-
-    // Espera mínima para que la animación de "escribiendo" se vea natural
-    const elapsed = Date.now() - typingStart;
-    if (elapsed < TYPING_MIN_DELAY_MS) {
-      await sleep(TYPING_MIN_DELAY_MS - elapsed);
-    }
-
-    if (useModeration && editOverlay && editTextArea) {
-      editOverlay.dataset.mode = `moderation-${persona}`;
-      editOverlay.dataset.persona = persona;
-      editOverlay.dataset.order = "";
-      editTextArea.value = stripThinkBlocksAlways(replyNoThinkAlways);
-      if (editSingleWrapper) editSingleWrapper.style.display = "block";
-      if (editDualWrapper) editDualWrapper.classList.remove("open");
-      openEditModal();
-      return reply;
-    }
-
-    if (collectOnly) {
-      return reply;
-    }
-
-    addMessage(reply, displayName, { role: "assistant" });
-    return reply;
-  } catch (err) {
-    console.error(err);
-
-    const elapsed = Date.now() - typingStart;
-    if (elapsed < TYPING_MIN_DELAY_MS) {
-      await sleep(TYPING_MIN_DELAY_MS - elapsed);
-    }
-
-    addMessage(
-      "⚠️ Hubo un error técnico al hablar con la IA.",
-      displayName,
-      { role: "assistant", broadcast: false }
-    );
-    return null;
     } finally {
       if (!moderationActive) {
-        hideTyping(displayName);
+        hideTyping(getPersonaDisplayName(persona));
       }
     }
   }
-
-
 
   // 8) Enviar mensajes del jugador
   async function sendMessage() {
@@ -2638,7 +2787,10 @@ if (editOverlay) {
     const text = messageInput.value.trim();
     if (!text) return;
 
-    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timeStr = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     addMessage(text, player.name, { role: "user" });
     messageInput.value = "";
@@ -2674,10 +2826,12 @@ if (editOverlay) {
 
   function sanitizeModelForApi(model) {
     if (!model) return undefined;
-    return String(model).replace(/\s*\(.*?\)\s*/g, "").trim() || undefined;
+    return (
+      String(model)
+        .replace(/\s*\(.*?\)\s*/g, "")
+        .trim() || undefined
+    );
   }
-
-
 
   if (sendBtn) {
     sendBtn.addEventListener("click", sendMessage);
@@ -2716,8 +2870,14 @@ if (editOverlay) {
   window.addEventListener("orientationchange", handleViewportLayoutChange);
 
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", handleViewportLayoutChange);
-    window.visualViewport.addEventListener("scroll", handleViewportLayoutChange);
+    window.visualViewport.addEventListener(
+      "resize",
+      handleViewportLayoutChange,
+    );
+    window.visualViewport.addEventListener(
+      "scroll",
+      handleViewportLayoutChange,
+    );
   }
 
   // 10) Panel secreto de GM (solo tÃº lo ves)
@@ -3023,7 +3183,7 @@ if (editOverlay) {
     const sylvieEnabledToggle = panel.querySelector("#sylvie-enabled-toggle");
     const sylvieVisibleToggle = panel.querySelector("#sylvie-visible-toggle");
     const sylvieModerationToggle = panel.querySelector(
-      "#sylvie-moderation-toggle"
+      "#sylvie-moderation-toggle",
     );
     const sylvieEmojiInput = panel.querySelector("#sylvie-avatar-emoji");
     const sylvieImageInput = panel.querySelector("#sylvie-avatar-image");
@@ -3106,14 +3266,20 @@ if (editOverlay) {
     aiControls.forEach((controls) => {
       const slot = controls.slot;
       if (!slot) return;
-      if (controls.enabledToggle) controls.enabledToggle.checked = !!slot.enabled;
-      if (controls.visibleToggle) controls.visibleToggle.checked = !!slot.visible;
-      if (controls.moderationToggle) controls.moderationToggle.checked = !!slot.moderationEnabled;
+      if (controls.enabledToggle)
+        controls.enabledToggle.checked = !!slot.enabled;
+      if (controls.visibleToggle)
+        controls.visibleToggle.checked = !!slot.visible;
+      if (controls.moderationToggle)
+        controls.moderationToggle.checked = !!slot.moderationEnabled;
       if (controls.modelSelect) controls.modelSelect.value = slot.model || "";
       // Usar getAISlotName para obtener el nombre más actualizado (slot → card → key)
-      if (controls.nameInput) controls.nameInput.value = getAISlotName(controls.key) || "";
-      if (controls.emojiInput) controls.emojiInput.value = slot.avatarEmoji || "";
-      if (controls.extraPromptArea) controls.extraPromptArea.value = slot.extraPrompt || "";
+      if (controls.nameInput)
+        controls.nameInput.value = getAISlotName(controls.key) || "";
+      if (controls.emojiInput)
+        controls.emojiInput.value = slot.avatarEmoji || "";
+      if (controls.extraPromptArea)
+        controls.extraPromptArea.value = slot.extraPrompt || "";
     });
     const renderAISlotCardStatus = (controls) => {
       if (!controls.cardStatus || !controls.slot) return;
@@ -3156,17 +3322,20 @@ if (editOverlay) {
       });
     }
 
-        const resetChatBtn = panel.querySelector("#gm-reset-chat");
+    const resetChatBtn = panel.querySelector("#gm-reset-chat");
     if (resetChatBtn) {
       resetChatBtn.addEventListener("click", () => {
-        showToast("⚠️ ¿Borrar TODO el chat para todos los jugadores? Esta acción no se puede deshacer.", {
-          type: "danger",
-          duration: 0,
-          actions: [
-            { label: "Cancelar", cb: null },
-            { label: "Sí, reiniciar", primary: true, cb: resetChatForAll },
-          ],
-        });
+        showToast(
+          "⚠️ ¿Borrar TODO el chat para todos los jugadores? Esta acción no se puede deshacer.",
+          {
+            type: "danger",
+            duration: 0,
+            actions: [
+              { label: "Cancelar", cb: null },
+              { label: "Sí, reiniciar", primary: true, cb: resetChatForAll },
+            ],
+          },
+        );
       });
     }
 
@@ -3178,7 +3347,11 @@ if (editOverlay) {
           duration: 0,
           actions: [
             { label: "Cancelar", cb: null },
-            { label: "Expulsar", primary: true, cb: () => sendWs({ type: "kick_all" }) },
+            {
+              label: "Expulsar",
+              primary: true,
+              cb: () => sendWs({ type: "kick_all" }),
+            },
           ],
         });
       });
@@ -3197,7 +3370,6 @@ if (editOverlay) {
         });
       });
     }
-
 
     if (nameInput) {
       nameInput.addEventListener("input", () => {
@@ -3270,8 +3442,15 @@ if (editOverlay) {
       if (controls.visibleToggle) {
         controls.visibleToggle.addEventListener("change", () => {
           slot.visible = controls.visibleToggle.checked;
+
+          gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+
           saveGMSettings();
+
+          sharedRosterState = buildSharedRosterStateFromSettings();
+
           renderPlayers();
+
           broadcastSharedRosterState();
         });
       }
@@ -3291,30 +3470,31 @@ if (editOverlay) {
       }
 
       if (controls.nameInput) {
-  controls.nameInput.addEventListener("input", () => {
-    const value = controls.nameInput.value.trim();
+        controls.nameInput.addEventListener("input", () => {
+          const value = controls.nameInput.value.trim();
 
-    slot.name = value.length > 0
-      ? value
-      : `IA ${AI_SLOT_KEYS.indexOf(controls.key) + 1}`;
+          slot.name =
+            value.length > 0
+              ? value
+              : `IA ${AI_SLOT_KEYS.indexOf(controls.key) + 1}`;
 
-    gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+          gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
 
-    saveGMSettings();
+          saveGMSettings();
 
-    sharedRosterState.aiSlots = gmSettings.aiSlots.map((s) => ({
-      key: s.key,
-      name: s.name,
-      visible: !!s.visible,
-      enabled: !!s.enabled,
-    }));
+          sharedRosterState.aiSlots = gmSettings.aiSlots.map((s) => ({
+            key: s.key,
+            name: s.name,
+            visible: !!s.visible,
+            enabled: !!s.enabled,
+          }));
 
-    renderPlayers();
-    renderMessages();
+          renderPlayers();
+          renderMessages();
 
-    broadcastSharedRosterState();
-  });
-}
+          broadcastSharedRosterState();
+        });
+      }
 
       if (controls.emojiInput) {
         controls.emojiInput.addEventListener("input", () => {
@@ -3325,7 +3505,8 @@ if (editOverlay) {
 
       if (controls.imageInput) {
         controls.imageInput.addEventListener("change", () => {
-          const file = controls.imageInput.files && controls.imageInput.files[0];
+          const file =
+            controls.imageInput.files && controls.imageInput.files[0];
           const slotName = (slot.name || "").trim() || slot.key.toUpperCase();
           if (!file) {
             slot.avatarImageDataUrl = "";
@@ -3337,7 +3518,11 @@ if (editOverlay) {
           reader.onload = (e) => {
             slot.avatarImageDataUrl = e.target.result;
             saveGMSettings();
-            sendWs({ type: "avatar_update", name: slotName, avatar: e.target.result });
+            sendWs({
+              type: "avatar_update",
+              name: slotName,
+              avatar: e.target.result,
+            });
           };
           reader.readAsDataURL(file);
         });
@@ -3345,7 +3530,8 @@ if (editOverlay) {
 
       if (controls.cardFileInput) {
         controls.cardFileInput.addEventListener("change", async () => {
-          const file = controls.cardFileInput.files && controls.cardFileInput.files[0];
+          const file =
+            controls.cardFileInput.files && controls.cardFileInput.files[0];
           if (!file) return;
           if (controls.cardStatus) {
             controls.cardStatus.textContent = "Cargando card...";
@@ -3359,14 +3545,20 @@ if (editOverlay) {
               controls.nameInput.value = getAISlotName(controls.key);
             }
             renderAISlotCardStatus(controls);
-            showToast(`✅ Card cargada en ${getAISlotName(controls.key)}: ${result.cardName || "sin nombre"}`, { type: "success", duration: 4000 });
+            showToast(
+              `✅ Card cargada en ${getAISlotName(controls.key)}: ${result.cardName || "sin nombre"}`,
+              { type: "success", duration: 4000 },
+            );
           } catch (err) {
             console.error("Error al cargar card de IA:", err);
             if (controls.cardStatus) {
               controls.cardStatus.textContent =
                 "Error al cargar la card. Usa PNG/WebP con metadata o JSON válido.";
             }
-            showToast("No se pudo leer la Character Card de la IA. Usa un PNG/WebP con metadata o un JSON válido.", { type: "danger", duration: 6000 });
+            showToast(
+              "No se pudo leer la Character Card de la IA. Usa un PNG/WebP con metadata o un JSON válido.",
+              { type: "danger", duration: 6000 },
+            );
           }
         });
       }
@@ -3379,7 +3571,9 @@ if (editOverlay) {
           slot.cardPrompt = "";
           slot.cardAvatarDataUrl = "";
           if (slot.name === prevCardName) {
-            slot.name = DEFAULT_AI_SLOTS.find((defaults) => defaults.key === slot.key)?.name || slot.key.toUpperCase();
+            slot.name =
+              DEFAULT_AI_SLOTS.find((defaults) => defaults.key === slot.key)
+                ?.name || slot.key.toUpperCase();
             if (controls.nameInput) {
               controls.nameInput.value = slot.name;
             }
@@ -3406,7 +3600,10 @@ if (editOverlay) {
       narratorSendBtn.addEventListener("click", () => {
         const text = narratorMessageArea.value.trim();
         if (!text) {
-          showToast("El mensaje del narrador no puede estar vacío.", { type: "warning", duration: 3000 });
+          showToast("El mensaje del narrador no puede estar vacío.", {
+            type: "warning",
+            duration: 3000,
+          });
           return;
         }
         addMessage(text, "", { role: "narrator" });
@@ -3434,7 +3631,11 @@ if (editOverlay) {
         reader.onload = (e) => {
           gmSettings.avatarImageDataUrl = e.target.result;
           saveGMSettings();
-          sendWs({ type: "avatar_update", name: getGMName(), avatar: e.target.result });
+          sendWs({
+            type: "avatar_update",
+            name: getGMName(),
+            avatar: e.target.result,
+          });
         };
         reader.readAsDataURL(file);
       });
@@ -3456,14 +3657,20 @@ if (editOverlay) {
             nameInput.value = getGMName() || "";
           }
           renderCardStatus();
-          showToast(`✅ Card cargada: ${result.cardName || "sin nombre"}`, { type: "success", duration: 4000 });
+          showToast(`✅ Card cargada: ${result.cardName || "sin nombre"}`, {
+            type: "success",
+            duration: 4000,
+          });
         } catch (err) {
           console.error("Error al cargar card:", err);
           if (gmCardStatus) {
             gmCardStatus.textContent =
               "Error al cargar la card. Usa PNG/WebP con metadata o JSON válido.";
           }
-          showToast("No se pudo leer la Character Card. Usa un PNG/WebP con metadata o un JSON válido.", { type: "danger", duration: 6000 });
+          showToast(
+            "No se pudo leer la Character Card. Usa un PNG/WebP con metadata o un JSON válido.",
+            { type: "danger", duration: 6000 },
+          );
         }
       });
     }
@@ -3550,7 +3757,11 @@ if (editOverlay) {
         reader.onload = (e) => {
           gmSettings.sylvieAvatarImageDataUrl = e.target.result;
           saveGMSettings();
-          sendWs({ type: "avatar_update", name: SYLVIE_NAME, avatar: e.target.result });
+          sendWs({
+            type: "avatar_update",
+            name: SYLVIE_NAME,
+            avatar: e.target.result,
+          });
         };
         reader.readAsDataURL(file);
       });
@@ -3564,7 +3775,7 @@ if (editOverlay) {
     }
   }
 
-    if (isGM) {
+  if (isGM) {
     setupGMPanel();
 
     // Ocultar botón GM mientras el textarea tiene foco (evita tapar teclado en móvil)
@@ -3592,16 +3803,12 @@ if (editOverlay) {
     }
   }
 
-
   // 10) Sincronizar reset global antes de abrir el historial local
   setConnectionStatus("reconnecting");
   activateNavigationGuard();
-  ensureChatStateReady()
-    .finally(() => {
-      connectWebSocket(player.name || "Viajero");
-    });
-
-  
+  ensureChatStateReady().finally(() => {
+    connectWebSocket(player.name || "Viajero");
+  });
 
   // La contraseña ya se pidió en el Pasaporte (login).
   // Aquí solo usamos el nombre para saber si mostramos el Panel GM.
