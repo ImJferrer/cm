@@ -722,34 +722,50 @@
   }
 
   function normalizeSharedRosterState(raw = {}) {
-    const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
-    return {
-      gmName:
-        (typeof raw.gmName === "string" && raw.gmName.trim()) ||
-        DEFAULT_SHARED_ROSTER_STATE.gmName,
-      gmVisible: raw.gmVisible !== false,
-      gmEnabled: !!raw.gmEnabled,
-      aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
-        const slot = rawSlots[index] || {};
-        // Prioridad: nombre del slot recibido → nombre actual en gmSettings → default
-        // No caemos al default si el nombre recibido existe aunque sea el mismo que el default
-        const resolvedName =
-          (typeof slot.name === "string" && slot.name.trim())
-            ? slot.name.trim()
-            : (typeof gmSettings?.aiSlots?.[index]?.name === "string" && gmSettings.aiSlots[index].name.trim())
-              ? gmSettings.aiSlots[index].name.trim()
-              : defaults.name;
-        return {
-          key: defaults.key,
-          name: resolvedName,
-          visible: !!slot.visible,
-          enabled: !!slot.enabled,
-        };
-      }),
-      sylvieVisible: raw.sylvieVisible !== false,
-      sylvieEnabled: !!raw.sylvieEnabled,
-    };
-  }
+  const rawSlots = Array.isArray(raw.aiSlots) ? raw.aiSlots : [];
+
+  return {
+    gmName:
+      (typeof raw.gmName === "string" && raw.gmName.trim()) ||
+      DEFAULT_SHARED_ROSTER_STATE.gmName,
+
+    gmVisible: raw.gmVisible !== false,
+
+    gmEnabled: !!raw.gmEnabled,
+
+    aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
+      const slot = rawSlots[index] || {};
+
+      const resolvedName =
+        (typeof slot.name === "string" && slot.name.trim())
+          ? slot.name.trim()
+          : (typeof gmSettings?.aiSlots?.[index]?.name === "string" &&
+             gmSettings.aiSlots[index].name.trim())
+            ? gmSettings.aiSlots[index].name.trim()
+            : defaults.name;
+
+      return {
+        key: defaults.key,
+
+        name: resolvedName,
+
+        visible:
+          typeof slot.visible === "boolean"
+            ? slot.visible
+            : defaults.visible,
+
+        enabled:
+          typeof slot.enabled === "boolean"
+            ? slot.enabled
+            : defaults.enabled,
+      };
+    }),
+
+    sylvieVisible: raw.sylvieVisible !== false,
+
+    sylvieEnabled: !!raw.sylvieEnabled,
+  };
+}
 
   function applySharedRosterState(raw, options = {}) {
     if (!raw || typeof raw !== "object") return;
@@ -1251,20 +1267,30 @@ if (themeSelector) {
       });
     }
     (sharedRosterState.aiSlots || []).forEach((slot, index) => {
-      if (!slot || !slot.visible) return;
-      // Preferimos el nombre actual de gmSettings (más fresco) sobre el del sharedRosterState
-      // para que un cambio de nombre se refleje de inmediato sin esperar al broadcast
-      const liveName =
-        (isGM && gmSettings?.aiSlots?.[index]?.name?.trim())
-          ? gmSettings.aiSlots[index].name.trim()
-          : (slot.name || "IA");
-      npcs.push({
-        name: liveName,
-        role: slot.enabled ? "IA conectada" : "IA desconectada",
-        isMe: false,
-        online: !!slot.enabled,
-      });
-    });
+  if (!slot) return;
+
+  const liveName =
+    (slot.name || "").trim() ||
+    (gmSettings?.aiSlots?.[index]?.name || "").trim() ||
+    `IA ${index + 1}`;
+
+  console.log("[AI SLOT RENDER]", {
+    index,
+    liveName,
+    visible: slot.visible,
+    enabled: slot.enabled,
+    slot,
+  });
+
+  if (!slot.visible) return;
+
+  npcs.push({
+    name: liveName,
+    role: slot.enabled ? "IA conectada" : "IA desconectada",
+    isMe: false,
+    online: !!slot.enabled,
+  });
+});
     if (sharedRosterState.sylvieVisible !== false) {
       npcs.push({
         name: SYLVIE_NAME,
@@ -3265,15 +3291,30 @@ if (editOverlay) {
       }
 
       if (controls.nameInput) {
-        controls.nameInput.addEventListener("input", () => {
-          const newName = controls.nameInput.value.trim() || slot.key.toUpperCase();
-          slot.name = newName;
-          saveGMSettings();
-          renderPlayers();
-          renderMessages(); // refresca avatares en el historial con el nuevo nombre
-          broadcastSharedRosterState();
-        });
-      }
+  controls.nameInput.addEventListener("input", () => {
+    const value = controls.nameInput.value.trim();
+
+    slot.name = value.length > 0
+      ? value
+      : `IA ${AI_SLOT_KEYS.indexOf(controls.key) + 1}`;
+
+    gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+
+    saveGMSettings();
+
+    sharedRosterState.aiSlots = gmSettings.aiSlots.map((s) => ({
+      key: s.key,
+      name: s.name,
+      visible: !!s.visible,
+      enabled: !!s.enabled,
+    }));
+
+    renderPlayers();
+    renderMessages();
+
+    broadcastSharedRosterState();
+  });
+}
 
       if (controls.emojiInput) {
         controls.emojiInput.addEventListener("input", () => {
