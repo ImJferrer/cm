@@ -3386,6 +3386,15 @@ document.addEventListener("DOMContentLoaded", () => {
         renderPlayers();
         broadcastSharedRosterState();
       });
+      nameInput.addEventListener("blur", () => {
+        if (gmSettings.avatarImageDataUrl) {
+          sendWs({
+            type: "avatar_update",
+            name: getGMName(),
+            avatar: gmSettings.avatarImageDataUrl,
+          });
+        }
+      });
     }
 
     if (modelSelect) {
@@ -3519,6 +3528,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
           broadcastSharedRosterState();
         });
+        
+        controls.nameInput.addEventListener("blur", () => {
+          if (slot.avatarImageDataUrl) {
+            sendWs({
+              type: "avatar_update",
+              name: getAISlotName(controls.key),
+              avatar: slot.avatarImageDataUrl,
+            });
+          }
+        });
       }
 
       if (controls.emojiInput) {
@@ -3571,6 +3590,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             updateUIWithNewName();
             renderAISlotCardStatus(controls);
+
+            if (result.avatarDataUrl) {
+              sendWs({
+                type: "avatar_update",
+                name: getAISlotName(controls.key),
+                avatar: result.avatarDataUrl,
+              });
+            }
+
             showToast(
               `✅ Card cargada en ${getAISlotName(controls.key)}: ${result.cardName || "sin nombre"}`,
               { type: "success", duration: 4000 },
@@ -3684,6 +3712,15 @@ document.addEventListener("DOMContentLoaded", () => {
             nameInput.value = getGMName() || "";
           }
           renderCardStatus();
+
+          if (result.avatarDataUrl) {
+            sendWs({
+              type: "avatar_update",
+              name: getGMName(),
+              avatar: result.avatarDataUrl,
+            });
+          }
+
           showToast(`✅ Card cargada: ${result.cardName || "sin nombre"}`, {
             type: "success",
             duration: 4000,
