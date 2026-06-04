@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -1371,20 +1371,26 @@
         online: sharedRosterState.gmEnabled,
       });
     }
-    (getAISlots() || []).forEach((slot, index) => {
-      if (!slot) return;
-      if (!slot.visible) return;
+    // Usar sharedRosterState.aiSlots para visibilidad/enabled (funciona para GM y no-GM)
+    const rosterSlots = sharedRosterState.aiSlots || [];
+    const localSlots = getAISlots() || [];
+    rosterSlots.forEach((rSlot, index) => {
+      if (!rSlot) return;
+      if (!rSlot.visible) return;
 
+      // Preferir nombre del roster compartido; fallback al slot local
+      const localSlot = localSlots[index];
       const liveName =
-        (slot.name || "").trim() ||
-        (slot.cardName || "").trim() ||
+        (rSlot.name || "").trim() ||
+        (localSlot?.name || "").trim() ||
+        (localSlot?.cardName || "").trim() ||
         `IA ${index + 1}`;
 
       npcs.push({
         name: liveName,
-        role: slot.enabled ? "IA conectada" : "IA desconectada",
+        role: rSlot.enabled ? "IA conectada" : "IA desconectada",
         isMe: false,
-        online: !!slot.enabled,
+        online: !!rSlot.enabled,
       });
     });
     if (sharedRosterState.sylvieVisible !== false) {
@@ -3477,6 +3483,17 @@
             value.length > 0
               ? value
               : `IA ${AI_SLOT_KEYS.indexOf(controls.key) + 1}`;
+
+          // Si el nombre fue cambiado explícitamente y difiere del cardName,
+          // limpiar cardName y cardPrompt para que la IA adopte la nueva identidad.
+          if (
+            slot.cardName &&
+            slot.name.toLowerCase() !== slot.cardName.toLowerCase()
+          ) {
+            slot.cardName = "";
+            slot.cardPrompt = "";
+            renderAISlotCardStatus(controls);
+          }
 
           gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
 
