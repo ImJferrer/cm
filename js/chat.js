@@ -3436,6 +3436,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
 
+      const updateUIWithNewName = () => {
+        if (controls.forceBtn) {
+          controls.forceBtn.textContent = getAISlotName(controls.key);
+        }
+      };
+      
+      updateUIWithNewName();
+
       if (controls.enabledToggle) {
         controls.enabledToggle.addEventListener("change", () => {
           slot.enabled = controls.enabledToggle.checked;
@@ -3448,8 +3456,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (controls.visibleToggle) {
         controls.visibleToggle.addEventListener("change", () => {
           slot.visible = controls.visibleToggle.checked;
-
-          gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
 
           saveGMSettings();
 
@@ -3495,9 +3501,9 @@ document.addEventListener("DOMContentLoaded", () => {
             renderAISlotCardStatus(controls);
           }
 
-          gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
-
           saveGMSettings();
+
+          updateUIWithNewName();
 
           sharedRosterState.aiSlots = gmSettings.aiSlots.map((s) => ({
             key: s.key,
@@ -3561,6 +3567,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (controls.nameInput) {
               controls.nameInput.value = getAISlotName(controls.key);
             }
+            updateUIWithNewName();
             renderAISlotCardStatus(controls);
             showToast(
               `✅ Card cargada en ${getAISlotName(controls.key)}: ${result.cardName || "sin nombre"}`,
@@ -3599,6 +3606,7 @@ document.addEventListener("DOMContentLoaded", () => {
             slot.avatarImageDataUrl = "";
           }
           saveGMSettings();
+          updateUIWithNewName();
           renderPlayers();
           broadcastSharedRosterState();
           renderAISlotCardStatus(controls);
