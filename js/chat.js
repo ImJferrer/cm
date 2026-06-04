@@ -713,7 +713,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getAISlots() {
-    gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+    if (!gmSettings.aiSlots) {
+      gmSettings.aiSlots = normalizeAISlots([]);
+    }
     return gmSettings.aiSlots;
   }
 
