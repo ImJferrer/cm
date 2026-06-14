@@ -131,7 +131,8 @@ function buildPlayerList() {
     .map((meta) => ({
       clientId: meta.id,
       name: meta.name,
-      avatar: meta.avatar
+      avatar: meta.avatar,
+      profile: meta.profile || {},
     }));
 }
 
@@ -164,7 +165,7 @@ app.post("/api/chat-state/roster", (req, res) => {
 
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
-  const meta = { id: clientId, name: "Viajero", avatar: null };
+  const meta = { id: clientId, name: "Viajero", avatar: null, profile: {} };
   wsClients.set(ws, meta);
 
   ws.send(JSON.stringify({
@@ -185,7 +186,17 @@ wss.on("connection", (ws) => {
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
       if (parsed.avatar) meta.avatar = parsed.avatar;
-      broadcast({ type: "presence", event: "join", clientId, name: meta.name });
+      if (parsed.profile && typeof parsed.profile === "object") {
+        meta.profile = {
+          gender: safeString(parsed.profile.gender, 40),
+          age: safeString(parsed.profile.age, 10),
+          dw: safeString(parsed.profile.dw, 40),
+          phrase: safeString(parsed.profile.phrase, 200),
+          appearance: safeString(parsed.profile.appearance, 1000),
+          history: safeString(parsed.profile.history, 2000),
+        };
+      }
+      broadcast({ type: "presence", event: "join", clientId, name: meta.name, profile: meta.profile });
       broadcastPlayerList();
       return;
     }

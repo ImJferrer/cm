@@ -348,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.type === "presence") {
       if (data.event === "join") {
         if (!remotePlayers.find((p) => p.clientId === data.clientId)) {
-          remotePlayers.push({ clientId: data.clientId, name: data.name });
+          remotePlayers.push({ clientId: data.clientId, name: data.name, profile: data.profile || {} });
         }
       } else if (data.event === "leave") {
         remotePlayers = remotePlayers.filter(
@@ -424,6 +424,14 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "hello",
         name: playerName || "Viajero",
         avatar: player.avatarDataUrl,
+        profile: {
+          gender: player.gender || "",
+          age: player.age || "",
+          dw: player.dw || "",
+          phrase: player.phrase || "",
+          appearance: player.appearance || "",
+          history: player.history || "",
+        },
       });
       if (isGM) {
         broadcastSharedRosterState();
@@ -1361,6 +1369,13 @@ document.addEventListener("DOMContentLoaded", () => {
         role: "Conectado",
         isMe: false,
         online: true,
+        avatarUrl: p.avatar || "",
+        gender: p.profile?.gender || "",
+        age: p.profile?.age || "",
+        dw: p.profile?.dw || "",
+        phrase: p.profile?.phrase || "",
+        appearance: p.profile?.appearance || "",
+        history: p.profile?.history || "",
       }));
 
     // — NPCs / IA ─────────────────────────────────────────────
@@ -1459,8 +1474,13 @@ document.addEventListener("DOMContentLoaded", () => {
           appearance = "Entidad generada dentro de Draw World.";
           history = "Unidad de Inteligencia Artificial al servicio de Cross Moon.";
         } else {
-          appearance = "Información encriptada.";
-          history = "Información confidencial del servidor.";
+          avatar = p.avatarUrl || "";
+          gender = p.gender || "none";
+          age = p.age || "";
+          phrase = p.phrase || "";
+          appearance = p.appearance || "Sin descripción de apariencia.";
+          history = p.history || "Sin registros en la aduana.";
+          dwId = p.dw || "";
         }
 
         openVisitorProfile(p.name, isAI, avatar, gender, age, dwId, phrase, appearance, history);
