@@ -1524,7 +1524,16 @@ document.addEventListener("DOMContentLoaded", () => {
       vpStat2.style.display = "flex";
       
       vpStat1.querySelector(".vp-stat-label").textContent = "Genero";
-      vpStat1.querySelector(".vp-stat-value").textContent = gender === "M" || gender === "male" ? "♂" : gender === "F" || gender === "female" ? "♀" : "⚧";
+      
+      const gLower = (gender || "").toLowerCase().trim();
+      const isMale = /^(m|male|hombre|masculino|macho|var[oó]n|chico|ni[ñn]o)$/i.test(gLower);
+      const isFemale = /^(f|female|mujer|femenin[oa]|hembra|chica|ni[ñn]a)$/i.test(gLower);
+      
+      let gIcon = "⚧";
+      if (isMale) gIcon = "♂";
+      else if (isFemale) gIcon = "♀";
+      
+      vpStat1.querySelector(".vp-stat-value").textContent = gIcon;
       vpStat1.querySelector(".vp-stat-value").className = "vp-stat-value";
       
       vpStat2.querySelector(".vp-stat-label").textContent = "Edad";
