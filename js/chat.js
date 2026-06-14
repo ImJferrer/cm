@@ -1393,6 +1393,8 @@ document.addEventListener("DOMContentLoaded", () => {
         role: rSlot.enabled ? "IA conectada" : "IA desconectada",
         isMe: false,
         online: !!rSlot.enabled,
+        avatarUrl: localSlot?.avatarImageDataUrl || "",
+        phrase: localSlot?.cardPrompt || "",
       });
     });
     if (sharedRosterState.sylvieVisible !== false) {
@@ -1401,6 +1403,8 @@ document.addEventListener("DOMContentLoaded", () => {
         role: "Reina del Draw World",
         isMe: false,
         online: sharedRosterState.sylvieEnabled,
+        avatarUrl: "",
+        phrase: "Bienvenido a mi dominio.",
       });
     }
 
@@ -1432,6 +1436,36 @@ document.addEventListener("DOMContentLoaded", () => {
       li.appendChild(dot);
       li.appendChild(info);
 
+      li.addEventListener("click", () => {
+        let isAI = p.role.includes("IA") || p.name === SYLVIE_NAME || p.name === gmName;
+        let avatar = p.avatarUrl || "";
+        let gender = "none";
+        let age = "";
+        let phrase = p.phrase || "";
+        let appearance = "";
+        let history = "";
+        let dwId = "";
+
+        if (p.isMe) {
+          isAI = false;
+          avatar = player.avatarDataUrl || "";
+          gender = player.gender || "none";
+          age = player.age || "";
+          phrase = player.phrase || "";
+          appearance = player.appearance || "Sin descripción de apariencia.";
+          history = player.history || "Sin registros en la aduana.";
+          dwId = player.dw || "";
+        } else if (isAI) {
+          appearance = "Entidad generada dentro de Draw World.";
+          history = "Unidad de Inteligencia Artificial al servicio de Cross Moon.";
+        } else {
+          appearance = "Información encriptada.";
+          history = "Información confidencial del servidor.";
+        }
+
+        openVisitorProfile(p.name, isAI, avatar, gender, age, dwId, phrase, appearance, history);
+      });
+
       playersListEl.appendChild(li);
     });
 
@@ -1442,6 +1476,88 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   renderPlayers();
+
+  // ── VISITOR PROFILE OVERLAY ──
+  const vpOverlay = document.getElementById("visitor-profile-overlay");
+  const vpCloseBtn = document.getElementById("vp-close");
+  const vpAvatar = document.getElementById("vp-avatar");
+  const vpName = document.getElementById("vp-name");
+  const vpId = document.getElementById("vp-id");
+  const vpPhrase = document.getElementById("vp-phrase");
+  const vpAppearance = document.getElementById("vp-appearance");
+  const vpHistory = document.getElementById("vp-history");
+  const vpStat1 = document.getElementById("vp-stat-1");
+  const vpStat2 = document.getElementById("vp-stat-2");
+
+  function openVisitorProfile(name, isAI, avatarUrl, gender, age, dwId, phrase, appearance, history) {
+    if (!vpOverlay) return;
+    
+    vpName.textContent = name || "Desconocido";
+    vpId.textContent = dwId ? `ID: ${dwId}` : "ID: DESCONOCIDO";
+    
+    if (avatarUrl) {
+      vpAvatar.src = avatarUrl;
+      vpAvatar.style.display = "block";
+    } else {
+      vpAvatar.style.display = "none";
+    }
+    
+    if (phrase) {
+      vpPhrase.textContent = `"${phrase}"`;
+      vpPhrase.style.display = "block";
+    } else {
+      vpPhrase.style.display = "none";
+    }
+    
+    vpAppearance.textContent = appearance;
+    vpHistory.textContent = history;
+    
+    if (isAI) {
+      vpStat1.style.display = "none";
+      vpStat2.style.display = "flex";
+      vpStat2.querySelector(".vp-stat-label").textContent = "Tipo";
+      const valEl = vpStat2.querySelector(".vp-stat-value");
+      valEl.textContent = "IA";
+      valEl.classList.add("ia-badge");
+    } else {
+      vpStat1.style.display = "flex";
+      vpStat2.style.display = "flex";
+      
+      vpStat1.querySelector(".vp-stat-label").textContent = "Genero";
+      vpStat1.querySelector(".vp-stat-value").textContent = gender === "M" || gender === "male" ? "♂" : gender === "F" || gender === "female" ? "♀" : "⚧";
+      vpStat1.querySelector(".vp-stat-value").className = "vp-stat-value";
+      
+      vpStat2.querySelector(".vp-stat-label").textContent = "Edad";
+      vpStat2.querySelector(".vp-stat-value").textContent = age || "??";
+      vpStat2.querySelector(".vp-stat-value").className = "vp-stat-value";
+    }
+    
+    vpOverlay.classList.add("open");
+  }
+
+  if (vpCloseBtn) {
+    vpCloseBtn.addEventListener("click", () => {
+      vpOverlay.classList.remove("open");
+    });
+  }
+
+  // Click on avatar in chat header
+  if (userAvatarEl) {
+    userAvatarEl.style.cursor = "pointer";
+    userAvatarEl.addEventListener("click", () => {
+      openVisitorProfile(
+        player.name,
+        false, // Not AI
+        player.avatarDataUrl,
+        player.gender,
+        player.age,
+        player.dw,
+        player.phrase,
+        player.appearance || "Sin descripción de apariencia.",
+        player.history || "Sin registros en la aduana."
+      );
+    });
+  }
 
   // 4) Historial de mensajes + scroll
   let messages = [];

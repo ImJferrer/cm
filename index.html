@@ -2,8 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cross Moon ✦ Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Cross Moon ✦ Frontera</title>
+  <meta name="description" content="Registro de viajeros interdimensionales — Cross Moon Draw World JC-2" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -18,137 +19,169 @@
   </header>
 
   <div class="scene">
-    <div class="table-surface"></div>
+    <main class="id-badge" id="credential-card">
+      
+      <!-- ═══ Badge Header ═══ -->
+      <div class="badge-header">
+        <div class="badge-emblem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="12" rx="11" ry="3" transform="rotate(-20 12 12)" />
+            <circle cx="12" cy="12" r="7" />
+            <polygon points="12,8 15,12 12,16 9,12" fill="currentColor" />
+          </svg>
+        </div>
+        <div class="badge-titles">
+          <h1>CREDENCIAL DE INGRESO</h1>
+          <h2>CROSS MOON - TIPO P</h2>
+        </div>
+        <div class="badge-holo-seal"></div>
+      </div>
 
-    <main class="passport">
-      <section class="passport-page">
-        <div class="passport-upper">
-          <div class="passport-photo-block">
-            <div class="photo-label">Foto del Personaje</div>
+      <!-- ═══ IDs Bar ═══ -->
+      <div class="badge-ids">
+        <div class="id-group">
+          <span class="id-label">PASS NO.</span>
+          <span class="id-value" id="cred-cm">CM-0000-0000</span>
+        </div>
+        <div class="id-group">
+          <span class="id-label">DW IDENTIFIER</span>
+          <span class="id-value" id="cred-dw">DW-0000-0000</span>
+        </div>
+        <div class="id-group">
+          <span class="id-label">COUNTRY CODE</span>
+          <span class="id-value" id="country-code">---</span>
+        </div>
+      </div>
+
+      <!-- ═══ Form Body ═══ -->
+      <form id="login-form" class="badge-body">
+        
+        <!-- Hero Section: Photo + Core Stats -->
+        <div class="badge-hero">
+          
+          <div class="badge-photo-wrapper">
             <div class="photo-frame" id="photo-frame">
-              <div class="avatar-placeholder" id="avatar-placeholder">FOTO</div>
-              <img src="" alt="Avatar" class="avatar-img" id="avatar-preview" />
+              <div class="avatar-placeholder" id="avatar-placeholder">INSERTE<br>FOTOGRAFÍA</div>
+              <img src="" alt="Avatar del personaje" class="avatar-img" id="avatar-preview" />
+              <div class="photo-overlay"></div>
             </div>
-            <p class="passport-note">
-              Bienvenido/a al Draw World JC-2. Este pasaporte certifica tu identidad como viajero interdimensional y autoriza tu tránsito conforme a lo dispuesto en la Gaceta Oficial de Tránsitos Interdimensionales N.º DW-42/JC-2.
-            </p>
-            <div class="passport-stamp">APROBADO</div>
+            <button type="button" id="avatar-pick-btn" class="badge-photo-btn">Escanear Rostro</button>
+            <input type="file" id="avatar" accept="image/*" hidden />
+            <p id="avatar-required-hint" class="avatar-required-hint">Foto obligatoria.</p>
           </div>
 
-          <div class="passport-form-block">
-            <h1 class="passport-title">Pasaporte del Viajero</h1>
-            <p class="passport-intro">
-              Completa tus datos para registrar tu identidad interdimensional. Conserva este pasaporte para futuros regresos.
-            </p>
-
-            <form id="login-form" class="passport-form">
-              <div class="field-group">
-                <label for="name" class="field-label">Nombre del viajero</label>
-                <input type="text" id="name" class="field-input" placeholder="Nombre que portarás en el Cross Moon" required />
+          <div class="badge-stats">
+            <div class="badge-field">
+              <label for="name">NOMBRE DEL PORTADOR</label>
+              <input type="text" id="name" placeholder="Identidad principal" required />
+            </div>
+            
+            <div class="badge-field-row">
+              <div class="badge-field">
+                <label for="gender">GÉNERO</label>
+                <input type="text" id="gender" placeholder="Ej: Femenino" required />
               </div>
-
-              <div class="field-group">
-                <label for="history" class="field-label">Historia / Origen</label>
-                <textarea id="history" class="field-textarea" rows="4" placeholder="Describe quién eres, apariencia y de dónde vienes..." required></textarea>
+              <div class="badge-field">
+                <label for="age">EDAD</label>
+                <input type="number" id="age" placeholder="20" min="1" max="9999" required />
               </div>
-
-              <div class="field-group">
-                <label class="field-label">Foto del personaje <span class="field-required">*</span></label>
-                <button type="button" id="avatar-pick-btn" class="btn ghost avatar-pick-btn">
-                  📷 Seleccionar foto
-                </button>
-                <input type="file" id="avatar" accept="image/*" hidden />
-                <p id="avatar-required-hint" class="avatar-required-hint">La foto es obligatoria.</p>
+              <div class="badge-field">
+                <label for="height">ALTURA</label>
+                <input type="text" id="height" placeholder="1.70 M" required />
               </div>
+            </div>
 
-              <div class="field-group inline-buttons">
-                <button type="button" id="save-json" class="btn ghost">Guardar personaje</button>
-                <label for="load-json" class="btn ghost">
-                  Cargar personaje
-                  <input type="file" id="load-json" accept="application/json" hidden />
-                </label>
-              </div>
-
-              <div class="field-group">
-                <button class="btn primary" type="submit">Entregar Pasaporte</button>
-              </div>
-            </form>
+            <div class="badge-field">
+              <label for="phrase">FRASE CARACTERÍSTICA</label>
+              <input type="text" id="phrase" placeholder="Una cita que te defina..." required />
+            </div>
           </div>
         </div>
 
-        <footer class="passport-footer">
-          <span>Oficina de Migraciones del Cross Moon</span>
-          <span class="passport-code">DW-JC2 · Terminal Lunar 02</span>
-        </footer>
-      </section>
-
-      <div class="passport-cover">
-        <div class="passport-cover-inner">
-          <div class="passport-cover-top">PASE INTERDIMENSIONAL TEMPORAL</div>
-          <div class="passport-cover-emblem">
-            <span class="passport-cover-symbol">✒️</span>
-          </div>
-          <div class="passport-cover-title">PASAPORTE</div>
-          <div class="passport-cover-sub">
-            <span id="user-country-cover">Real World</span> · Draw World JC-2
-          </div>
-          <div class="passport-cover-serial">
-            N.º SERIE <span id="passport-serial">DW-JC2-0001</span>
-          </div>
-          <div class="passport-chip"></div>
-        </div>
-      </div>
-
-      <div class="avatar-crop-overlay" id="avatar-crop-overlay">
-        <div class="avatar-crop-dialog">
-          <h2 class="avatar-crop-title">Ajusta la foto</h2>
-          <p class="avatar-crop-help">Arrastra para centrar y usa el zoom para ajustar.</p>
-          <div class="avatar-crop-area">
-            <div class="avatar-crop-frame">
-              <img id="avatar-crop-image" src="" alt="" draggable="false" />
+        <!-- Dossier Section: Appearance & History -->
+        <div class="badge-dossier">
+          
+          <div class="badge-field badge-appearance-field">
+            <label for="appearance">REGISTRO FÍSICO (APARIENCIA)</label>
+            <div class="appearance-wrapper">
+              <textarea id="appearance" rows="3" placeholder="Describe tus rasgos físicos distintivos..." required></textarea>
+              <div class="badge-thumb" id="cred-thumb">
+                <div class="cred-thumb-placeholder" id="cred-thumb-placeholder">01</div>
+                <img src="" alt="" class="cred-thumb-img" id="cred-thumb-img" style="display:none;" />
+                <div class="thumb-scanline"></div>
+              </div>
             </div>
           </div>
-          <div class="avatar-crop-controls">
-            <label class="avatar-zoom-label">
-              Zoom
-              <input type="range" id="avatar-zoom" min="1" max="2.5" step="0.01" value="1" />
+
+          <div class="badge-field">
+            <label for="history">ANTECEDENTES / ORIGEN</label>
+            <textarea id="history" rows="4" placeholder="¿De qué mundo provienes y cuál es tu historia?" required></textarea>
+          </div>
+
+        </div>
+
+        <!-- Footer / Actions -->
+        <div class="badge-footer">
+          <div class="badge-barcode"></div>
+          
+          <div class="badge-actions">
+            <button type="button" id="save-json" class="btn-badge ghost">Guardar Perfil</button>
+            <label for="load-json" class="btn-badge ghost" style="cursor:pointer;">
+              Cargar Perfil
+              <input type="file" id="load-json" accept="application/json" hidden />
             </label>
-            <div class="avatar-crop-buttons">
-              <button type="button" id="avatar-cancel" class="btn ghost">Cancelar</button>
-              <button type="button" id="avatar-apply" class="btn primary">Usar foto</button>
-            </div>
+            <button type="submit" class="btn-badge primary">Autorizar Acceso</button>
           </div>
         </div>
-      </div>
 
-      <div id="gm-auth-overlay" class="avatar-crop-overlay gm-auth-overlay">
-        <div class="avatar-crop-dialog gm-auth-dialog">
-          <h2 class="avatar-crop-title">Pasaporte protegido</h2>
-          <p id="gm-auth-message">Este pasaporte está protegido. Introduce la contraseña para continuar.</p>
-          <input id="gm-auth-password" type="password" placeholder="Contraseña" style="width:100%;margin-top:0.5rem;margin-bottom:0.4rem;" />
-          <div id="gm-auth-error" style="color:#f97373;font-size:0.8rem;min-height:1.1rem;"></div>
-          <div class="avatar-crop-buttons" style="margin-top:0.5rem;">
-            <button type="button" id="gm-auth-cancel" class="btn ghost">Cancelar</button>
-            <button type="button" id="gm-auth-submit" class="btn primary">Desbloquear</button>
+        <!-- ═══ Passport MRZ Code ═══ -->
+        <div class="badge-mrz">
+          <div class="mrz-line">P&lt;DWJC2&lt;TRAVELER&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
+          <div class="mrz-line" id="mrz-dynamic">CM0000000&lt;9DW0000000&lt;0000000&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;02</div>
+        </div>
+
+      </form>
+    </main>
+
+    <!-- ═══ Avatar Crop Overlay ═══ -->
+    <div class="avatar-crop-overlay" id="avatar-crop-overlay">
+      <div class="avatar-crop-dialog">
+        <h2 class="avatar-crop-title">Calibrar Escáner Biométrico</h2>
+        <p class="avatar-crop-help">Arrastra para centrar y usa el zoom para ajustar el encuadre.</p>
+        <div class="avatar-crop-area">
+          <div class="avatar-crop-frame">
+            <img id="avatar-crop-image" src="" alt="" draggable="false" />
+          </div>
+        </div>
+        <div class="avatar-crop-controls">
+          <label class="avatar-zoom-label">
+            Zoom
+            <input type="range" id="avatar-zoom" min="1" max="2.5" step="0.01" value="1" />
+          </label>
+          <div class="avatar-crop-buttons">
+            <button type="button" id="avatar-cancel" class="btn-badge ghost">Cancelar</button>
+            <button type="button" id="avatar-apply" class="btn-badge primary">Confirmar</button>
           </div>
         </div>
       </div>
-    </main>
+    </div>
+
+    <!-- ═══ GM Auth Modal ═══ -->
+    <div id="gm-auth-overlay" class="avatar-crop-overlay gm-auth-overlay">
+      <div class="avatar-crop-dialog gm-auth-dialog">
+        <h2 class="avatar-crop-title">ACCESO RESTRINGIDO</h2>
+        <p id="gm-auth-message" style="margin-bottom: 1rem; color: #a1a1aa; font-size: 0.85rem;">Esta identidad está encriptada. Se requiere clave de descifrado.</p>
+        <input id="gm-auth-password" type="password" placeholder="Clave de acceso" class="gm-input" />
+        <div id="gm-auth-error" style="color:#ef4444; font-size:0.8rem; min-height:1.1rem; margin-top: 0.4rem;"></div>
+        <div class="avatar-crop-buttons" style="margin-top:1rem;">
+          <button type="button" id="gm-auth-cancel" class="btn-badge ghost">Abortar</button>
+          <button type="button" id="gm-auth-submit" class="btn-badge primary">Desencriptar</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <script>
-    (async () => {
-      try {
-        const spans = document.querySelectorAll("#user-country, #user-country-cover");
-        const res = await fetch("https://apip.cc/json");
-        if (!res.ok) return;
-        const d = await res.json();
-        if (d.status !== "success") return;
-        const country = d.CountryName || d.CountryCode || d.ContinentName;
-        if (country) spans.forEach(s => s.textContent = country);
-      } catch (_) {}
-    })();
-  </script>
   <script>window.DWJC2_API_BASE = "https://cross-moon.onrender.com";</script>
   <script src="js/login.js"></script>
 </body>
