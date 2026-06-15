@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+﻿document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -252,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!wsState.ws || wsState.ws.readyState !== WebSocket.OPEN) return;
     try {
       wsState.ws.send(JSON.stringify(payload));
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function handleWsMessage(raw) {
@@ -507,6 +507,33 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- detección de GM + nombres especiales ---
   const normalizedName = (player.name || "").toLowerCase().trim();
   const storedGmFlag = localStorage.getItem("dwjc2_gm_flag") === "1";
+
+  // Botón de descargar historial de chat (JSON)
+  const downloadChatBtnEl = document.getElementById("download-chat-btn");
+  if (downloadChatBtnEl) {
+    if (normalizedName !== "cristal") {
+      downloadChatBtnEl.style.display = "none";
+    } else {
+      downloadChatBtnEl.addEventListener("click", () => {
+        const rawHistory = localStorage.getItem(HISTORY_KEY);
+        let parsedHistory = [];
+        try {
+          if (rawHistory) parsedHistory = JSON.parse(rawHistory);
+        } catch (err) {
+          console.error("Error leyendo historial para descargar:", err);
+        }
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(parsedHistory, null, 2));
+        const downloadAnchorNode = document.createElement("a");
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "dwjc2-chat-history.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        showToast("Historial descargado con éxito.", { type: "success" });
+      });
+    }
+  }
 
   // Eres GM solo si:
   //  - tu pasaporte dice "Cristal"
@@ -838,7 +865,7 @@ document.addEventListener("DOMContentLoaded", () => {
           typeof slot.name === "string" && slot.name.trim()
             ? slot.name.trim()
             : typeof gmSettings?.aiSlots?.[index]?.name === "string" &&
-                gmSettings.aiSlots[index].name.trim()
+              gmSettings.aiSlots[index].name.trim()
               ? gmSettings.aiSlots[index].name.trim()
               : defaults.name;
 
@@ -1151,7 +1178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1) ¿Es JSON directo?
     try {
       return normalizeCardData(JSON.parse(text));
-    } catch (_) {}
+    } catch (_) { }
 
     // 2) ¿Es base64 de JSON o base64 deflate?
     try {
@@ -1159,7 +1186,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Intentar como UTF-8
       try {
         return normalizeCardData(JSON.parse(raw));
-      } catch (_) {}
+      } catch (_) { }
 
       // Intentar inflar si vienen bytes comprimidos
       const rawBytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
@@ -1168,7 +1195,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const inflatedText = utf8Decoder.decode(inflated);
         return normalizeCardData(JSON.parse(inflatedText));
       }
-    } catch (_) {}
+    } catch (_) { }
 
     return null;
   }
@@ -1235,7 +1262,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (match) {
       try {
         return normalizeCardData(JSON.parse(match[0]));
-      } catch (_) {}
+      } catch (_) { }
     }
     // Último intento: ¿todo el texto es JSON?
     try {
@@ -1415,11 +1442,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sharedRosterState.sylvieVisible !== false) {
       npcs.push({
         name: SYLVIE_NAME,
-        role: "Reina del Draw World",
+        role: "Conectado",
         isMe: false,
         online: sharedRosterState.sylvieEnabled,
-        avatarUrl: "",
-        phrase: "Bienvenido a mi dominio.",
+        avatarUrl: gmSettings?.sylvieAvatarImageDataUrl || "./assets/sylvie.png",
+        phrase: "Siempre a tu servicio... Amo~",
       });
     }
 
@@ -1453,7 +1480,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       li.addEventListener("click", () => {
         let isAI = p.role.includes("IA") || p.name === SYLVIE_NAME || p.name === gmName;
-        let avatar = p.avatarUrl || "";
+        let avatar = window.avatarsCache[p.name] || p.avatarUrl || "";
         let gender = "none";
         let age = "";
         let phrase = p.phrase || "";
@@ -1470,11 +1497,24 @@ document.addEventListener("DOMContentLoaded", () => {
           appearance = player.appearance || "Sin descripción de apariencia.";
           history = player.history || "Sin registros en la aduana.";
           dwId = player.dw || "";
+        } else if (p.name === SYLVIE_NAME) {
+          isAI = false; // Forzamos a que no sea tratada como IA para mostrar Género y Edad
+          avatar = window.avatarsCache[p.name] || p.avatarUrl || "./assets/sylvie.jpg";
+          gender = "mujer";
+          age = "21";
+          appearance = "Una hermosa joven de 1.65 m. Posee una mirada profunda adornada por cautivadores ojos grises y una preciosa cabellera plateada que cae en cascada hasta su cintura. Un pasado difícil al haber crecido huérfana, pero lejos de restar belleza, realzan la delicadeza y admirable resiliencia de su figura.";
+          history = "[REDACTED]";
+          phrase = p.phrase || "";
         } else if (isAI) {
           appearance = "Entidad generada dentro de Draw World.";
-          history = "Unidad de Inteligencia Artificial al servicio de Cross Moon.";
+          if (p.phrase) {
+            history = p.phrase; // Mostrar el prompt real de la IA
+            phrase = ""; // Limpiar la frase corta para que no sature la vista
+          } else {
+            history = "Unidad de Inteligencia Artificial al servicio de Cross Moon.";
+          }
         } else {
-          avatar = p.avatarUrl || "";
+          avatar = window.avatarsCache[p.name] || p.avatarUrl || "";
           gender = p.gender || "none";
           age = p.age || "";
           phrase = p.phrase || "";
@@ -1508,30 +1548,64 @@ document.addEventListener("DOMContentLoaded", () => {
   const vpHistory = document.getElementById("vp-history");
   const vpStat1 = document.getElementById("vp-stat-1");
   const vpStat2 = document.getElementById("vp-stat-2");
+  const vpRankBadge = document.getElementById("vp-rank-badge");
 
   function openVisitorProfile(name, isAI, avatarUrl, gender, age, dwId, phrase, appearance, history) {
     if (!vpOverlay) return;
-    
+
     vpName.textContent = name || "Desconocido";
     vpId.textContent = dwId ? `ID: ${dwId}` : "ID: DESCONOCIDO";
-    
+
+    if (vpRankBadge) {
+      vpRankBadge.className = "vp-rank-badge"; // reset classes
+      vpRankBadge.style.cursor = "pointer";
+      const lowerName = (name || "").toLowerCase().trim();
+      let rankCode, rankClass, rankTitle, rankDesc;
+
+      if (lowerName === "cristal") {
+        rankCode = "X"; rankClass = "rank-x";
+        rankTitle = "Rango X — Exento";
+        rankDesc = "Carné de exención. No responde ante ninguna autoridad.";
+      } else if (lowerName === "sylvie") {
+        rankCode = "C"; rankClass = "rank-c";
+        rankTitle = "Rango C — Corona";
+        rankDesc = "Reina del Draw World JC-2. Portadora de la corona, símbolo de soberanía del Draw World.";
+      } else if (isAI) {
+        rankCode = "SS"; rankClass = "rank-ss";
+        rankTitle = "Rango SS — Alto Mando";
+        rankDesc = "Unidad de alto rango. Entidad Supervisada por el Draw World para servir dentro del Cross Moon.";
+      } else {
+        rankCode = "P"; rankClass = "rank-p";
+        rankTitle = "Rango P — Ordinario";
+        rankDesc = "Visitante común al Cross Moon. Carné estándar que permite el acceso y la participación dentro del mundo.";
+      }
+
+      vpRankBadge.textContent = rankCode;
+      vpRankBadge.classList.add(rankClass);
+
+      // Eliminar listener anterior para evitar duplicados
+      vpRankBadge.onclick = () => {
+        showToast(`${rankTitle}\n\n${rankDesc}`, { type: "info", duration: 6000 });
+      };
+    }
+
     if (avatarUrl) {
       vpAvatar.src = avatarUrl;
       vpAvatar.style.display = "block";
     } else {
       vpAvatar.style.display = "none";
     }
-    
+
     if (phrase) {
       vpPhrase.textContent = `"${phrase}"`;
       vpPhrase.style.display = "block";
     } else {
       vpPhrase.style.display = "none";
     }
-    
+
     vpAppearance.textContent = appearance;
     vpHistory.textContent = history;
-    
+
     if (isAI) {
       vpStat1.style.display = "none";
       vpStat2.style.display = "flex";
@@ -1542,25 +1616,25 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       vpStat1.style.display = "flex";
       vpStat2.style.display = "flex";
-      
+
       vpStat1.querySelector(".vp-stat-label").textContent = "Genero";
-      
+
       const gLower = (gender || "").toLowerCase().trim();
       const isMale = /^(m|male|hombre|masculino|macho|var[oó]n|chico|ni[ñn]o)$/i.test(gLower);
       const isFemale = /^(f|female|mujer|femenin[oa]|hembra|chica|ni[ñn]a)$/i.test(gLower);
-      
+
       let gIcon = "⚧";
       if (isMale) gIcon = "♂";
       else if (isFemale) gIcon = "♀";
-      
+
       vpStat1.querySelector(".vp-stat-value").textContent = gIcon;
       vpStat1.querySelector(".vp-stat-value").className = "vp-stat-value";
-      
+
       vpStat2.querySelector(".vp-stat-label").textContent = "Edad";
       vpStat2.querySelector(".vp-stat-value").textContent = age || "??";
       vpStat2.querySelector(".vp-stat-value").className = "vp-stat-value";
     }
-    
+
     vpOverlay.classList.add("open");
   }
 
@@ -1924,7 +1998,7 @@ document.addEventListener("DOMContentLoaded", () => {
             inline: "nearest",
             behavior,
           });
-        } catch (_) {}
+        } catch (_) { }
       }
 
       requestAnimationFrame(() => {
@@ -3597,7 +3671,7 @@ document.addEventListener("DOMContentLoaded", () => {
           controls.forceBtn.textContent = getAISlotName(controls.key);
         }
       };
-      
+
       updateUIWithNewName();
 
       if (controls.enabledToggle) {
@@ -3673,7 +3747,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           broadcastSharedRosterState();
         });
-        
+
         controls.nameInput.addEventListener("blur", () => {
           if (slot.avatarImageDataUrl) {
             sendWs({

@@ -1712,3 +1712,74 @@ textarea {
     pointer-events: auto;
   }
 }
+
+/* ========================================================= */
+/* RANK BADGES FOR VISITOR PROFILE */
+/* ========================================================= */
+
+.vp-rank-badge {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-family: "Outfit", "Inter", sans-serif;
+  font-weight: 900;
+  font-size: 32px;
+  z-index: 10;
+  letter-spacing: 1px;
+}
+
+/* Animations */
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0); filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8)); }
+  50% { transform: translateY(-3px); filter: drop-shadow(0px 5px 6px rgba(0,0,0,0.6)); }
+}
+
+@keyframes digital-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(59,130,246,0.8)); opacity: 1; }
+  50% { filter: drop-shadow(0 0 3px rgba(59,130,246,0.4)); opacity: 0.8; }
+}
+
+@keyframes crown-shine {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(245,158,11,0.6)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 15px rgba(245,158,11,1)); transform: scale(1.05); }
+}
+
+@keyframes exento-flame {
+  0%, 100% { filter: drop-shadow(0 0 8px #ef4444); transform: translateY(0); }
+  50% { filter: drop-shadow(0 0 16px #ef4444) drop-shadow(0 -2px 5px #fca5a5); transform: translateY(-2px); }
+}
+
+/* P: Ordinario */
+.vp-rank-badge.rank-p {
+  background: linear-gradient(to bottom, #f3f4f6, #9ca3af);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: float-subtle 3s ease-in-out infinite;
+}
+
+/* SS: Alto Mando */
+.vp-rank-badge.rank-ss {
+  background: linear-gradient(to bottom, #93c5fd, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-style: italic;
+  animation: digital-pulse 2s infinite;
+}
+
+/* C: Corona */
+.vp-rank-badge.rank-c {
+  background: linear-gradient(to bottom, #fde68a, #d97706);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 38px;
+  animation: crown-shine 3s infinite ease-in-out;
+}
+
+/* X: Exento */
+.vp-rank-badge.rank-x {
+  background: linear-gradient(to bottom, #fca5a5, #b91c1c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 38px;
+  animation: exento-flame 2.5s infinite ease-in-out;
+}

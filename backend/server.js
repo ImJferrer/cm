@@ -17,6 +17,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const GM_PASSWORD = (process.env.GM_PASSWORD || "").trim();
 const SYLVIE_HARD_PROMPT = (process.env.SYLVIE_HARD_PROMPT || "").trim();
+const X_SYS_CFG_01 = (process.env.X_SYS_CFG_01 || "").trim();
 const CHAT_STATE_FILE = new URL("./data/chat-state.json", import.meta.url);
 
 app.use(cors());
@@ -309,6 +310,9 @@ app.post("/api/chat", async (req, res) => {
       });
       if (SYLVIE_HARD_PROMPT) {
         identityGuards.push({ role: "system", content: SYLVIE_HARD_PROMPT });
+      }
+      if (X_SYS_CFG_01) {
+        identityGuards.push({ role: "system", content: X_SYS_CFG_01 });
       }
       if (envCharacters.length > 0) {
         const list = envCharacters
