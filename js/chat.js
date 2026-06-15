@@ -1445,7 +1445,7 @@
         role: "Conectado",
         isMe: false,
         online: sharedRosterState.sylvieEnabled,
-        avatarUrl: gmSettings?.sylvieAvatarImageDataUrl || "./assets/sylvie.png",
+        avatarUrl: gmSettings?.sylvieAvatarImageDataUrl || "./assets/sylv.png",
         phrase: "Siempre a tu servicio... Amo~",
       });
     }
