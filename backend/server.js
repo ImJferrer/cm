@@ -238,6 +238,12 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if (parsed.type === "play_video") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "play_video", url: parsed.url });
+      return;
+    }
+
     if (parsed.type === "stop-typing") {
       broadcast({ type: "stop-typing", author: meta.name });
       return;

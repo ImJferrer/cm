@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -214,6 +214,82 @@
     }
   }
 
+  // ── Video Overlay ──────────────────────────────────────────
+  function playVideoOverlay(videoUrl) {
+    let overlay = document.getElementById("video-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "video-overlay";
+      overlay.style.position = "fixed";
+      overlay.style.top = "0";
+      overlay.style.left = "0";
+      overlay.style.width = "100vw";
+      overlay.style.height = "100vh";
+      overlay.style.backgroundColor = "black";
+      overlay.style.zIndex = "999999";
+      overlay.style.display = "flex";
+      overlay.style.alignItems = "center";
+      overlay.style.justifyContent = "center";
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity 0.5s ease";
+      
+      const video = document.createElement("video");
+      video.id = "video-player";
+      video.style.maxWidth = "100%";
+      video.style.maxHeight = "100%";
+      video.controls = false;
+      video.autoplay = true;
+      video.playsInline = true;
+      
+      const closeBtn = document.createElement("button");
+      closeBtn.textContent = "✖ Saltar";
+      closeBtn.style.position = "absolute";
+      closeBtn.style.top = "20px";
+      closeBtn.style.right = "20px";
+      closeBtn.style.padding = "10px 15px";
+      closeBtn.style.background = "rgba(0,0,0,0.5)";
+      closeBtn.style.color = "white";
+      closeBtn.style.border = "1px solid white";
+      closeBtn.style.borderRadius = "5px";
+      closeBtn.style.cursor = "pointer";
+      closeBtn.style.zIndex = "10";
+      
+      closeBtn.onclick = () => {
+        video.pause();
+        removeOverlay();
+      };
+      
+      video.onended = () => {
+        removeOverlay();
+      };
+      
+      function removeOverlay() {
+        overlay.style.opacity = "0";
+        setTimeout(() => {
+          if (overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+          }
+        }, 500);
+      }
+      
+      overlay.appendChild(video);
+      overlay.appendChild(closeBtn);
+      document.body.appendChild(overlay);
+    }
+    
+    const video = overlay.querySelector("video");
+    video.src = videoUrl;
+    
+    // Force reflow and fade in
+    void overlay.offsetWidth;
+    overlay.style.opacity = "1";
+    
+    video.play().catch(e => {
+      console.warn("Autoplay was prevented:", e);
+      video.controls = true;
+    });
+  }
+
   // ── WS connection status indicator ───────────────────────
   function setConnectionStatus(status) {
     // status: "connected" | "reconnecting" | "cold-start"
@@ -371,6 +447,12 @@
       localStorage.removeItem("dwjc2_player");
       localStorage.removeItem("dwjc2_gm_flag");
       window.location.href = "index.html";
+      return;
+    }
+
+    if (data.type === "play_video") {
+      playVideoOverlay(data.url);
+      return;
     }
   }
 
@@ -3118,6 +3200,13 @@
         <h3>Panel GM</h3>
 
         <section class="gm-section">
+          <h4>Media / Extras</h4>
+          <button id="gm-play-opening" type="button" class="gm-primary-btn gm-full-btn">
+            🎬 Reproducir Opening
+          </button>
+        </section>
+
+        <section class="gm-section">
           <h4>Forzar respuesta</h4>
           <div class="gm-force-grid">
             <button id="gm-force-reply" type="button" class="gm-primary-btn">GM</button>
@@ -3595,6 +3684,14 @@
             { label: "Cerrar sesión", primary: true, cb: logout },
           ],
         });
+      });
+    }
+
+    const playOpeningBtn = panel.querySelector("#gm-play-opening");
+    if (playOpeningBtn) {
+      playOpeningBtn.addEventListener("click", () => {
+        sendWs({ type: "play_video", url: "assets/opening_v.1-2.mp4" });
+        showToast("Opening enviado a todos los jugadores.", { type: "info", duration: 3000 });
       });
     }
 
