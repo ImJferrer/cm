@@ -290,6 +290,64 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ── Audio Player ──────────────────────────────────────────
+  let audioPlayers = {
+    ost: null,
+    fx: null
+  };
+
+  let gmAudioState = {
+    ost: { list: [], currentIndex: 0, mode: 'repeat-list' },
+    fx:  { list: [], currentIndex: 0, mode: 'none' }
+  };
+
+  function stopAudioLocal(category) {
+    if (audioPlayers[category]) {
+      audioPlayers[category].pause();
+      audioPlayers[category].currentTime = 0;
+      audioPlayers[category] = null;
+    }
+  }
+
+  function playAudioLocal(category, url, mode) {
+    stopAudioLocal(category);
+    const audio = new Audio(url);
+    audioPlayers[category] = audio;
+
+    if (mode === 'repeat-once') {
+      audio.loop = true;
+    }
+
+    audio.addEventListener('ended', () => {
+      if (isGM && mode !== 'repeat-once' && mode !== 'none') {
+        playNextGMAudio(category, mode);
+      }
+    });
+
+    audio.play().catch(e => {
+      console.warn("Audio autoplay prevented:", e);
+      showToast(`Autoplay bloqueado. Haz clic en la página para habilitar el audio.`, { type: "warning", duration: 5000 });
+    });
+  }
+
+  function playNextGMAudio(category, mode) {
+    const state = gmAudioState[category];
+    if (!state || state.list.length === 0) return;
+
+    if (mode === 'shuffle') {
+      state.currentIndex = Math.floor(Math.random() * state.list.length);
+    } else if (mode === 'repeat-list') {
+      state.currentIndex = (state.currentIndex + 1) % state.list.length;
+    } else {
+      return;
+    }
+
+    const nextFile = state.list[state.currentIndex];
+    const url = `assets/${category.toUpperCase()}/${nextFile}`;
+    sendWs({ type: "play_audio", category, url, mode });
+  }
+
+
   // ── WS connection status indicator ───────────────────────
   function setConnectionStatus(status) {
     // status: "connected" | "reconnecting" | "cold-start"
@@ -452,6 +510,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (data.type === "play_video") {
       playVideoOverlay(data.url);
+      return;
+    }
+
+    if (data.type === "play_audio") {
+      playAudioLocal(data.category, data.url, data.mode);
+      return;
+    }
+
+    if (data.type === "stop_audio") {
+      stopAudioLocal(data.category);
       return;
     }
   }
@@ -3220,9 +3288,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <section class="gm-section">
           <h4>Media / Extras</h4>
-          <button id="gm-play-opening" type="button" class="gm-primary-btn gm-full-btn">
+          <button id="gm-play-opening" type="button" class="gm-primary-btn gm-full-btn" style="margin-bottom: 1rem;">
             🎬 Reproducir Opening
           </button>
+
+          <div class="gm-audio-controls">
+            <h5>OST</h5>
+            <select id="gm-ost-select" class="gm-full-btn" style="margin-bottom: 0.5rem;"></select>
+            <select id="gm-ost-mode" class="gm-full-btn" style="margin-bottom: 0.5rem;">
+              <option value="repeat-list">Repetir lista</option>
+              <option value="repeat-once">Repetir una vez</option>
+              <option value="shuffle">Aleatorio</option>
+              <option value="none">Una sola vez</option>
+            </select>
+            <div style="display: flex; gap: 0.5rem;">
+              <button id="gm-ost-play" type="button" class="gm-primary-btn" style="flex:1;">▶ Play</button>
+              <button id="gm-ost-stop" type="button" class="gm-danger-btn" style="flex:1;">⏹ Stop</button>
+            </div>
+          </div>
+
+          <div class="gm-audio-controls" style="margin-top: 1rem;">
+            <h5>FX</h5>
+            <select id="gm-fx-select" class="gm-full-btn" style="margin-bottom: 0.5rem;"></select>
+            <select id="gm-fx-mode" class="gm-full-btn" style="margin-bottom: 0.5rem;">
+              <option value="none">Una sola vez</option>
+              <option value="repeat-list">Repetir lista</option>
+              <option value="repeat-once">Repetir una vez</option>
+              <option value="shuffle">Aleatorio</option>
+            </select>
+            <div style="display: flex; gap: 0.5rem;">
+              <button id="gm-fx-play" type="button" class="gm-primary-btn" style="flex:1;">▶ Play</button>
+              <button id="gm-fx-stop" type="button" class="gm-danger-btn" style="flex:1;">⏹ Stop</button>
+            </div>
+          </div>
         </section>
 
         <section class="gm-section">
@@ -3711,6 +3809,73 @@ document.addEventListener("DOMContentLoaded", () => {
       playOpeningBtn.addEventListener("click", () => {
         sendWs({ type: "play_video", url: "assets/opening_v.1-2.mp4" });
         showToast("Opening enviado a todos los jugadores.", { type: "info", duration: 3000 });
+      });
+    }
+
+    // --- Audio Controls ---
+    const ostSelect = panel.querySelector("#gm-ost-select");
+    const ostMode = panel.querySelector("#gm-ost-mode");
+    const ostPlayBtn = panel.querySelector("#gm-ost-play");
+    const ostStopBtn = panel.querySelector("#gm-ost-stop");
+
+    const fxSelect = panel.querySelector("#gm-fx-select");
+    const fxMode = panel.querySelector("#gm-fx-mode");
+    const fxPlayBtn = panel.querySelector("#gm-fx-play");
+    const fxStopBtn = panel.querySelector("#gm-fx-stop");
+
+    if (API_BASE) {
+      fetch(`${API_BASE}/api/media-files`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ost && ostSelect) {
+            gmAudioState.ost.list = data.ost;
+            ostSelect.innerHTML = data.ost.map(f => `<option value="${f}">${f}</option>`).join('');
+          }
+          if (data.fx && fxSelect) {
+            gmAudioState.fx.list = data.fx;
+            fxSelect.innerHTML = data.fx.map(f => `<option value="${f}">${f}</option>`).join('');
+          }
+        })
+        .catch(err => console.warn("No se pudieron cargar archivos multimedia:", err));
+    }
+
+    if (ostPlayBtn && ostSelect) {
+      ostPlayBtn.addEventListener("click", () => {
+        const file = ostSelect.value;
+        if (!file) return;
+        const mode = ostMode ? ostMode.value : "repeat-list";
+        gmAudioState.ost.mode = mode;
+        gmAudioState.ost.currentIndex = gmAudioState.ost.list.indexOf(file);
+        const url = `assets/OST/${file}`;
+        sendWs({ type: "play_audio", category: "ost", url, mode });
+        showToast(`Reproduciendo OST: ${file}`, { type: "info", duration: 3000 });
+      });
+    }
+
+    if (ostStopBtn) {
+      ostStopBtn.addEventListener("click", () => {
+        gmAudioState.ost.mode = "none";
+        sendWs({ type: "stop_audio", category: "ost" });
+      });
+    }
+
+    if (fxPlayBtn && fxSelect) {
+      fxPlayBtn.addEventListener("click", () => {
+        const file = fxSelect.value;
+        if (!file) return;
+        const mode = fxMode ? fxMode.value : "none";
+        gmAudioState.fx.mode = mode;
+        gmAudioState.fx.currentIndex = gmAudioState.fx.list.indexOf(file);
+        const url = `assets/FX/${file}`;
+        sendWs({ type: "play_audio", category: "fx", url, mode });
+        showToast(`Reproduciendo FX: ${file}`, { type: "info", duration: 3000 });
+      });
+    }
+
+    if (fxStopBtn) {
+      fxStopBtn.addEventListener("click", () => {
+        gmAudioState.fx.mode = "none";
+        sendWs({ type: "stop_audio", category: "fx" });
       });
     }
 

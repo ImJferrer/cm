@@ -152,6 +152,18 @@ function broadcastPlayerList() {
   });
 }
 
+app.get("/api/media-files", (req, res) => {
+  try {
+    const ostPath = fileURLToPath(new URL("../assets/OST", import.meta.url));
+    const fxPath = fileURLToPath(new URL("../assets/FX", import.meta.url));
+    const ost = fs.existsSync(ostPath) ? fs.readdirSync(ostPath) : [];
+    const fx = fs.existsSync(fxPath) ? fs.readdirSync(fxPath) : [];
+    res.json({ ost, fx });
+  } catch (err) {
+    res.status(500).json({ error: "No se pudieron listar los archivos de media" });
+  }
+});
+
 app.get("/api/chat-state", (_req, res) => {
   res.json({
     chatVersion: chatState.chatVersion,
@@ -247,6 +259,18 @@ wss.on("connection", (ws) => {
     if (parsed.type === "play_video") {
       if (meta.name.toLowerCase() !== "cristal") return;
       broadcast({ type: "play_video", url: parsed.url });
+      return;
+    }
+
+    if (parsed.type === "play_audio") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "play_audio", url: parsed.url, category: parsed.category, mode: parsed.mode });
+      return;
+    }
+
+    if (parsed.type === "stop_audio") {
+      if (meta.name.toLowerCase() !== "cristal") return;
+      broadcast({ type: "stop_audio", category: parsed.category });
       return;
     }
 
