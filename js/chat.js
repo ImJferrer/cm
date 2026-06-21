@@ -939,6 +939,8 @@ document.addEventListener("DOMContentLoaded", () => {
       gmVisible: raw.gmVisible !== false,
 
       gmEnabled: !!raw.gmEnabled,
+      gmAvatarUrl: typeof raw.gmAvatarUrl === "string" ? raw.gmAvatarUrl : "",
+      gmPhrase: typeof raw.gmPhrase === "string" ? raw.gmPhrase : "",
 
       aiSlots: DEFAULT_AI_SLOTS.map((defaults, index) => {
         const slot = rawSlots[index] || {};
@@ -961,12 +963,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
           enabled:
             typeof slot.enabled === "boolean" ? slot.enabled : defaults.enabled,
+
+          avatarUrl: typeof slot.avatarUrl === "string" ? slot.avatarUrl : "",
+          phrase: typeof slot.phrase === "string" ? slot.phrase : "",
         };
       }),
 
       sylvieVisible: raw.sylvieVisible !== false,
 
       sylvieEnabled: !!raw.sylvieEnabled,
+      sylvieAvatarUrl: typeof raw.sylvieAvatarUrl === "string" ? raw.sylvieAvatarUrl : "",
+      sylviePhrase: typeof raw.sylviePhrase === "string" ? raw.sylviePhrase : "",
     };
   }
 
@@ -988,6 +995,8 @@ document.addEventListener("DOMContentLoaded", () => {
           name: current.name || defaults.name,
           visible: !!current.visible,
           enabled: !!current.enabled,
+          avatarUrl: current.avatarUrl || "",
+          phrase: current.phrase || "",
         };
       }
 
@@ -1007,6 +1016,8 @@ document.addEventListener("DOMContentLoaded", () => {
           incoming.enabled !== undefined
             ? !!incoming.enabled
             : !!current.enabled,
+        avatarUrl: incoming.avatarUrl || current.avatarUrl || "",
+        phrase: incoming.phrase || current.phrase || "",
       };
     });
 
@@ -1026,6 +1037,8 @@ document.addEventListener("DOMContentLoaded", () => {
       gmName: getGMName(),
       gmVisible: gmSettings.gmVisible !== false,
       gmEnabled: !!gmSettings.gmEnabled,
+      gmAvatarUrl: gmSettings.avatarImageDataUrl || "",
+      gmPhrase: gmSettings.gmCardPrompt || "",
       aiSlots: getAISlots().map((slot) => ({
         key: slot.key,
         // Nombre en orden de prioridad: nombre actual del slot → cardName → key en mayúsculas
@@ -1035,9 +1048,13 @@ document.addEventListener("DOMContentLoaded", () => {
           slot.key.toUpperCase(),
         visible: !!slot.visible,
         enabled: !!slot.enabled,
+        avatarUrl: slot.avatarImageDataUrl || "",
+        phrase: slot.cardPrompt || "",
       })),
       sylvieVisible: gmSettings.sylvieVisible !== false,
       sylvieEnabled: !!gmSettings.sylvieEnabled,
+      sylvieAvatarUrl: gmSettings.sylvieAvatarImageDataUrl || "",
+      sylviePhrase: gmSettings.sylvieExtraPrompt || "",
     });
   }
 
@@ -1495,6 +1512,8 @@ document.addEventListener("DOMContentLoaded", () => {
         role: sharedRosterState.gmEnabled ? "Conectado" : "Desconectado",
         isMe: false,
         online: sharedRosterState.gmEnabled,
+        avatarUrl: sharedRosterState.gmAvatarUrl || gmSettings?.avatarImageDataUrl || "",
+        phrase: sharedRosterState.gmPhrase || gmSettings?.gmCardPrompt || "",
       });
     }
     // Usar sharedRosterState.aiSlots para visibilidad/enabled (funciona para GM y no-GM)
@@ -1517,8 +1536,8 @@ document.addEventListener("DOMContentLoaded", () => {
         role: rSlot.enabled ? "IA conectada" : "IA desconectada",
         isMe: false,
         online: !!rSlot.enabled,
-        avatarUrl: localSlot?.avatarImageDataUrl || "",
-        phrase: localSlot?.cardPrompt || "",
+        avatarUrl: rSlot.avatarUrl || localSlot?.avatarImageDataUrl || "",
+        phrase: rSlot.phrase || localSlot?.cardPrompt || "",
       });
     });
     if (sharedRosterState.sylvieVisible !== false) {
@@ -1527,8 +1546,8 @@ document.addEventListener("DOMContentLoaded", () => {
         role: "Conectado",
         isMe: false,
         online: sharedRosterState.sylvieEnabled,
-        avatarUrl: gmSettings?.sylvieAvatarImageDataUrl || "./assets/sylv.png",
-        phrase: "Siempre a tu servicio... Amo~",
+        avatarUrl: sharedRosterState.sylvieAvatarUrl || gmSettings?.sylvieAvatarImageDataUrl || "./assets/sylv.png",
+        phrase: sharedRosterState.sylviePhrase || gmSettings?.sylvieExtraPrompt || "Siempre a tu servicio... Amo~",
       });
     }
 

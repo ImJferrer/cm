@@ -47,6 +47,8 @@ function normalizeRosterState(raw = {}) {
     gmName: safeString(raw.gmName, 80).trim() || "...",
     gmVisible: raw.gmVisible !== false,
     gmEnabled: !!raw.gmEnabled,
+    gmAvatarUrl: safeString(raw.gmAvatarUrl, 5000000).trim() || "",
+    gmPhrase: safeString(raw.gmPhrase, 5000).trim() || "",
     aiSlots: AI_SLOT_KEYS.map((key, index) => {
       const slot = rawSlots[index] || {};
       return {
@@ -54,10 +56,14 @@ function normalizeRosterState(raw = {}) {
         name: safeString(slot.name, 80).trim() || key.toUpperCase(),
         visible: !!slot.visible,
         enabled: !!slot.enabled,
+        avatarUrl: safeString(slot.avatarUrl, 5000000).trim() || "",
+        phrase: safeString(slot.phrase, 5000).trim() || "",
       };
     }),
     sylvieVisible: raw.sylvieVisible !== false,
     sylvieEnabled: !!raw.sylvieEnabled,
+    sylvieAvatarUrl: safeString(raw.sylvieAvatarUrl, 5000000).trim() || "",
+    sylviePhrase: safeString(raw.sylviePhrase, 5000).trim() || "",
   };
 }
 
