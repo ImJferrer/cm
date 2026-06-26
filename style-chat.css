@@ -817,6 +817,8 @@ body.chat-page {
 
 /* ── Input area ── */
 .chat-input-area {
+    position: relative;
+    z-index: 10;
     padding: 0.5rem calc(1.2rem + var(--safe-right)) calc(0.65rem + var(--safe-bottom)) calc(1.2rem + var(--safe-left));
     border-top: 1px solid var(--border-soft);
     background: rgba(10, 15, 30, 0.9);
@@ -828,6 +830,8 @@ body.chat-page {
 .chat-input-inner {
     display: flex;
     align-items: flex-end;
+    position: relative;
+    z-index: 1;
     gap: 0.5rem;
     border-radius: 20px;
     background: rgba(15, 23, 42, 0.8);
@@ -1901,4 +1905,78 @@ textarea {
         animation: none;
         opacity: 0.7;
     }
+}
+
+/* ── @ Mention Autocomplete Dropdown ─────────────────────────── */
+.mention-dropdown {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgba(10, 15, 30, 0.97);
+  border: 1px solid var(--accent-soft);
+  border-radius: 0.6rem 0.6rem 0 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.mention-dropdown--open {
+  display: block;
+  pointer-events: auto;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-main);
+  border-radius: 0;
+  transition: background 0.12s ease;
+}
+
+.mention-item::before {
+  content: "@";
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.mention-item:hover,
+.mention-item--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mention-item--active::before {
+  opacity: 1;
+}
+
+/* ── System Dividers (join / leave / welcome) ── */
+.system-divider {
+    display: block;
+    text-align: center;
+    font-style: italic;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    padding: 0.35rem 0;
+    margin: 0.2rem 0;
+    user-select: none;
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
 }

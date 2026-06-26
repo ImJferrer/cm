@@ -108,6 +108,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let historyHydrated = false;
   let chatStateSyncPromise = null;
   let shouldStickToBottom = true;
+  let welcomeDividerShown = false;
+  // Divisores de sesión: { text, afterIndex } donde afterIndex = messages.length en el momento de inserción
+  let activeDividers = [];
   let sharedRosterState = { ...DEFAULT_SHARED_ROSTER_STATE };
 
   function getScrollContainer() {
@@ -290,6 +293,66 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ── Sound Manager (notificaciones de chat) ───────────────
+  const SoundManager = (() => {
+    const sounds = {
+      send:    new Audio("assets/Notify/EnviarMensaje.mp3"),
+      receive: new Audio("assets/Notify/RecibirMensaje.mp3"),
+      mention: new Audio("assets/Notify/MencionMensaje.mp3"),
+    };
+
+    // Silencia errores de carga; no interrumpen el flujo del chat
+    Object.values(sounds).forEach((audio) => {
+      audio.addEventListener("error", () => {});
+    });
+
+    function play(key) {
+      const audio = sounds[key];
+      if (!audio) return;
+      // Rebobina para poder reproducir en ráfagas rápidas
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+
+    return {
+      onSend() {
+        play("send");
+      },
+      /**
+       * Llámalo al recibir cualquier mensaje de otro (humano o IA).
+       * Elige automáticamente entre mention y receive.
+       * @param {string} authorName  - Nombre del autor del mensaje
+       * @param {string} messageText - Texto del mensaje
+       */
+      onReceive(authorName, messageText) {
+        // No suena para mensajes propios
+        if (
+          String(authorName || "").trim().toLowerCase() ===
+          String(player?.name || "").trim().toLowerCase()
+        ) return;
+
+        const localName = String(player?.name || "").trim();
+        const isMentioned =
+          localName.length > 0 &&
+          new RegExp(
+            `@${localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+            "i"
+          ).test(messageText || "");
+
+        if (isMentioned) {
+          // Si el audio de mención tiene error, usa receive como fallback
+          if (sounds.mention.error) {
+            play("receive");
+          } else {
+            play("mention");
+          }
+        } else {
+          play("receive");
+        }
+      },
+    };
+  })();
+
   // ── Audio Player ──────────────────────────────────────────
   let audioPlayers = {
     ost: null,
@@ -423,6 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg = data.message;
       // Limpia el typing del autor que acaba de enviar el mensaje
       removeTypingUser(String(msg.author));
+      SoundManager.onReceive(String(msg.author), String(msg.text || ""));
       addMessage(String(msg.text), String(msg.author), {
         role: msg.role,
         time: msg.time,
@@ -459,6 +523,16 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       renderPlayers();
       renderMessages();
+
+      // Divisor de bienvenida — exactamente una vez por sesión
+      if (!welcomeDividerShown) {
+        const selfInList = data.players.some((p) => p.name === player.name);
+        if (selfInList) {
+          welcomeDividerShown = true;
+          renderSystemDivider("---- Disfruta de tu estadía en el Cross Moon. ---");
+        }
+      }
+
       return;
     }
 
@@ -484,10 +558,16 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!remotePlayers.find((p) => p.clientId === data.clientId)) {
           remotePlayers.push({ clientId: data.clientId, name: data.name, profile: data.profile || {} });
         }
+        if (data.name && data.name !== player.name) {
+          renderSystemDivider(`---- ${data.name} ha caído en el Cross Moon ---`);
+        }
       } else if (data.event === "leave") {
         remotePlayers = remotePlayers.filter(
           (p) => p.clientId !== data.clientId,
         );
+        if (data.name && data.name !== player.name) {
+          renderSystemDivider(`---- ${data.name} ha cruzado la frontera de regreso. ---`);
+        }
       }
       renderPlayers();
       return;
@@ -2425,6 +2505,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // *cursiva*  (después de negrita para no pelearse con los **)
       escaped = escaped.replace(/\*(.+?)\*/g, "<em>$1</em>");
 
+      // @menciones en negrita
+      escaped = escaped.replace(/(@\w+)/g, "<strong>$1</strong>");
+
       if (isQuote) {
         return `<blockquote>${escaped}</blockquote>`;
       }
@@ -2435,11 +2518,40 @@ document.addEventListener("DOMContentLoaded", () => {
     return htmlLines.join("<br>");
   }
 
+  function renderSystemDivider(text) {
+    if (!chatBox) return;
+    // Registrar con la posición actual para intercalar correctamente en re-renders
+    activeDividers.push({ text, afterIndex: messages.length });
+    const wasAtBottom = isChatNearBottom();
+    const el = document.createElement("div");
+    el.className = "system-divider";
+    el.textContent = text;
+    chatBox.appendChild(el);
+    if (wasAtBottom) {
+      scrollChatToBottom({ smooth: true, force: true });
+    }
+  }
+
   function renderMessages() {
     if (!chatBox) return;
     chatBox.innerHTML = "";
 
-    messages.forEach((msg) => {
+    // Índice de divisores ordenado por posición
+    const dividersByIndex = {};
+    activeDividers.forEach(({ text, afterIndex }) => {
+      if (!dividersByIndex[afterIndex]) dividersByIndex[afterIndex] = [];
+      dividersByIndex[afterIndex].push(text);
+    });
+
+    // Insertar divisores que van ANTES de cualquier mensaje (afterIndex === 0)
+    (dividersByIndex[0] || []).forEach((text) => {
+      const el = document.createElement("div");
+      el.className = "system-divider";
+      el.textContent = text;
+      chatBox.appendChild(el);
+    });
+
+    messages.forEach((msg, i) => {
       const wrapper = document.createElement("div");
       wrapper.classList.add("chat-message");
       if (msg.author === player.name) wrapper.classList.add("mine");
@@ -2470,11 +2582,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       metaLine.appendChild(timeSpan);
 
-      // 🔽 Submenú de edición eliminado
-
       const textDiv = document.createElement("div");
       textDiv.className = "chat-text";
-      // ⬇️ Usamos el render de formato que ya tienes (cursiva, negrita, cita)
       textDiv.innerHTML = renderRichText(msg.text);
 
       if (msg.role !== "narrator") {
@@ -2493,10 +2602,15 @@ document.addEventListener("DOMContentLoaded", () => {
       inner.appendChild(bubble);
       wrapper.appendChild(inner);
 
-      // ❌ Ya NO creamos el botón "Editar mensaje" fuera del globo
-      // (lo sustituye el submenú ⋯ dentro del globo)
-
       chatBox.appendChild(wrapper);
+
+      // Insertar divisores que van después del mensaje en posición i+1
+      (dividersByIndex[i + 1] || []).forEach((text) => {
+        const el = document.createElement("div");
+        el.className = "system-divider";
+        el.textContent = text;
+        chatBox.appendChild(el);
+      });
     });
 
     scrollChatToBottom({ smooth: false, force: false });
@@ -2536,6 +2650,11 @@ document.addEventListener("DOMContentLoaded", () => {
     renderMessages();
     scrollChatToBottom({ smooth: true, force: forceScroll });
 
+    // Sonido local para mensajes de IA generados por el GM (no llegan por WS de vuelta)
+    if (!options.remote && role === "assistant") {
+      SoundManager.onReceive(author, normalizedText);
+    }
+
     if (options.broadcast === false || options.remote) return;
     sendWs({
       type: "chat",
@@ -2559,6 +2678,10 @@ document.addEventListener("DOMContentLoaded", () => {
     shouldStickToBottom = true;
     historyHydrated = true;
     renderMessages();
+
+    // Limpiar divisores de sistema del DOM (defensa en profundidad)
+    activeDividers = [];
+    chatBox?.querySelectorAll(".system-divider").forEach((el) => el.remove());
   }
 
   // ── Resetear chat para TODOS (solo GM) ───────────────────
@@ -3189,6 +3312,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     addMessage(text, player.name, { role: "user" });
+    SoundManager.onSend();
     messageInput.value = "";
     autoResizeMessageInput();
     messageInput.focus();
@@ -3250,6 +3374,164 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     autoResizeMessageInput();
   }
+
+  // ── @ Mention Autocomplete ────────────────────────────────
+  (function setupMentionAutocomplete() {
+    if (!messageInput) return;
+
+    const dropdown = document.createElement("ul");
+    dropdown.id = "mention-dropdown";
+    dropdown.className = "mention-dropdown";
+    dropdown.setAttribute("role", "listbox");
+    dropdown.setAttribute("aria-label", "Mencionar jugador");
+    // Insertarlo en el footer del chat (chat-input-area) como absoluto encima del input
+    const inputArea = messageInput.closest(".chat-input-area") || messageInput.parentNode;
+    inputArea.appendChild(dropdown);
+    // Asegurar que empieza oculto
+    dropdown.classList.remove("mention-dropdown--open");
+
+    let activeIndex = -1;
+
+    function getMentionableNames() {
+      const names = [];
+
+      // Jugadores remotos humanos (conectados, excluyendo al usuario local)
+      remotePlayers
+        .filter((p) => p.clientId !== wsState.clientId)
+        .forEach((p) => {
+          if (p.name && p.name !== player.name) names.push(p.name);
+        });
+
+      // NPCs visibles según sharedRosterState
+      const gmName = getGMName();
+      if (sharedRosterState.gmVisible !== false) {
+        names.push(gmName);
+      }
+
+      const rosterSlots = sharedRosterState.aiSlots || [];
+      const localSlots = getAISlots() || [];
+      rosterSlots.forEach((rSlot, index) => {
+        if (!rSlot || !rSlot.visible) return;
+        const localSlot = localSlots[index];
+        const liveName =
+          (rSlot.name || "").trim() ||
+          (localSlot?.name || "").trim() ||
+          (localSlot?.cardName || "").trim() ||
+          `IA ${index + 1}`;
+        names.push(liveName);
+      });
+
+      // Sylvie solo si está visible en el roster
+      if (sharedRosterState.sylvieVisible !== false) {
+        names.push(SYLVIE_NAME);
+      }
+
+      // Deduplicar y excluir al usuario local
+      return [...new Set(names)].filter(
+        (n) => n && n.toLowerCase() !== (player.name || "").toLowerCase()
+      );
+    }
+
+    function getAtQuery() {
+      const val = messageInput.value;
+      const pos = messageInput.selectionStart || 0;
+      // Buscar @ antes del cursor en la palabra actual
+      const before = val.slice(0, pos);
+      const match = before.match(/@(\w*)$/);
+      return match ? { query: match[1], atIndex: pos - match[0].length } : null;
+    }
+
+    function showDropdown(names) {
+      dropdown.innerHTML = "";
+      activeIndex = -1;
+      names.forEach((name, i) => {
+        const li = document.createElement("li");
+        li.className = "mention-item";
+        li.setAttribute("role", "option");
+        li.setAttribute("data-index", i);
+        li.textContent = name;
+        li.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          selectMention(name);
+        });
+        dropdown.appendChild(li);
+      });
+      dropdown.classList.add("mention-dropdown--open");
+    }
+
+    function hideDropdown() {
+      dropdown.classList.remove("mention-dropdown--open");
+      dropdown.innerHTML = "";
+      activeIndex = -1;
+    }
+
+    function setActiveItem(index) {
+      const items = dropdown.querySelectorAll(".mention-item");
+      items.forEach((el) => el.classList.remove("mention-item--active"));
+      if (index >= 0 && index < items.length) {
+        items[index].classList.add("mention-item--active");
+        items[index].scrollIntoView({ block: "nearest" });
+      }
+      activeIndex = index;
+    }
+
+    function selectMention(name) {
+      const val = messageInput.value;
+      const pos = messageInput.selectionStart || 0;
+      const before = val.slice(0, pos);
+      const after = val.slice(pos);
+      const match = before.match(/@(\w*)$/);
+      if (!match) return;
+      const atIndex = pos - match[0].length;
+      // Reemplaza @query por @Nombre seguido de espacio
+      const newBefore = before.slice(0, atIndex) + `@${name} `;
+      messageInput.value = newBefore + after;
+      // Mueve el cursor al final de la inserción
+      const newPos = newBefore.length;
+      messageInput.setSelectionRange(newPos, newPos);
+      hideDropdown();
+      autoResizeMessageInput();
+      messageInput.focus();
+    }
+
+    messageInput.addEventListener("input", () => {
+      const result = getAtQuery();
+      if (!result) { hideDropdown(); return; }
+
+      const { query } = result;
+      const names = getMentionableNames().filter((n) =>
+        n.toLowerCase().startsWith(query.toLowerCase())
+      );
+      if (names.length === 0) { hideDropdown(); return; }
+      showDropdown(names);
+    });
+
+    messageInput.addEventListener("keydown", (e) => {
+      if (!dropdown.classList.contains("mention-dropdown--open")) return;
+      const items = dropdown.querySelectorAll(".mention-item");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveItem((activeIndex + 1) % items.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveItem((activeIndex - 1 + items.length) % items.length);
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        if (activeIndex >= 0 && items[activeIndex]) {
+          e.preventDefault();
+          selectMention(items[activeIndex].textContent);
+        }
+      } else if (e.key === "Escape") {
+        hideDropdown();
+      }
+    });
+
+    // Cierra el dropdown si se hace clic fuera
+    document.addEventListener("click", (e) => {
+      if (!dropdown.contains(e.target) && e.target !== messageInput) {
+        hideDropdown();
+      }
+    });
+  })();
 
   // 9) Panel secreto de GM (solo tú lo ves)
   // 9) Ajustes de viewport y scroll para mÃ³vil
@@ -3807,7 +4089,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const playOpeningBtn = panel.querySelector("#gm-play-opening");
     if (playOpeningBtn) {
       playOpeningBtn.addEventListener("click", () => {
-        sendWs({ type: "play_video", url: "assets/opening_v.1-2.mp4" });
+        sendWs({ type: "play_video", url: "assets/opening_v.1-3.mp4" });
         showToast("Opening enviado a todos los jugadores.", { type: "info", duration: 3000 });
       });
     }
