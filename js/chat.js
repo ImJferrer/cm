@@ -4089,7 +4089,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const playOpeningBtn = panel.querySelector("#gm-play-opening");
     if (playOpeningBtn) {
       playOpeningBtn.addEventListener("click", () => {
-        sendWs({ type: "play_video", url: "assets/opening_v.1-3.mp4" });
+        sendWs({ type: "play_video", url: "assets/Opening_v.1-3.mp4" });
         showToast("Opening enviado a todos los jugadores.", { type: "info", duration: 3000 });
       });
     }
