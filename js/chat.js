@@ -136,9 +136,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function syncViewportHeightVar() {
-    const viewportHeight = window.visualViewport
-      ? window.visualViewport.height
-      : window.innerHeight;
+    // Usamos window.innerHeight para el alto "real" del viewport sin el teclado.
+    // visualViewport.height se encoge cuando sube el teclado virtual, lo que
+    // provocaba que todo el layout saltara. innerHeight no cambia con el teclado
+    // en la mayoría de browsers modernos (el comportamiento correcto).
+    const viewportHeight = window.innerHeight;
     document.documentElement.style.setProperty(
       "--app-height",
       `${Math.round(viewportHeight)}px`,
@@ -147,15 +149,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function autoResizeMessageInput() {
     if (!messageInput) return;
-    const keepBottomVisible =
-      document.activeElement === messageInput && isChatNearBottom();
-    messageInput.style.height = "auto";
+
     const computed = window.getComputedStyle(messageInput);
     const lineHeight = parseFloat(computed.lineHeight) || 20;
     const maxHeight = lineHeight * 5;
-    messageInput.style.height =
-      Math.min(messageInput.scrollHeight, maxHeight) + "px";
-    if (keepBottomVisible) {
+
+    // Guardamos la altura actual antes de medir para detectar si cambia.
+    const prevHeight = messageInput.offsetHeight;
+
+    // Para medir el scrollHeight real necesitamos que el elemento no esté
+    // constrained por su altura. Lo hacemos en un solo paso sin hacer
+    // height="auto" visible al usuario:
+    //   1. Forzamos overflow hidden (evita barra de scroll temporal)
+    //   2. Seteamos height a 1px (mínimo para que scrollHeight sea real)
+    //   3. Leemos scrollHeight y aplicamos la altura final — todo en un frame
+    messageInput.style.overflowY = "hidden";
+    messageInput.style.height = "1px";
+    const newHeight = Math.min(messageInput.scrollHeight, maxHeight);
+    messageInput.style.height = `${newHeight}px`;
+
+    // Si hay más contenido del que cabe, activamos scroll interno
+    if (messageInput.scrollHeight > maxHeight) {
+      messageInput.style.overflowY = "auto";
+    }
+
+    // Solo hacemos scroll del chat si la altura del textarea cambió
+    // (el usuario pasó a una nueva línea o borró una). Así evitamos el
+    // salto visual que se producía con cada letra dentro de la misma línea.
+    if (newHeight !== prevHeight && document.activeElement === messageInput && isChatNearBottom()) {
       scrollChatToBottom({ smooth: false, force: true });
     }
   }
@@ -2272,11 +2293,52 @@ document.addEventListener("DOMContentLoaded", () => {
     shouldStickToBottom = isChatNearBottom();
   }
 
+  // ── Detección de teclado virtual en móvil ────────────────
+  // Guardamos el alto inicial del viewport para saber si el teclado
+  // está activo (el viewport se encoge cuando el teclado sube).
+  let _initialViewportHeight = window.innerHeight;
+  let _keyboardVisible = false;
+
+  function _getViewportHeight() {
+    // Para detectar el teclado usamos visualViewport (se encoge con el teclado).
+    // Para actualizar --app-height usamos innerHeight (no cambia con el teclado).
+    return window.visualViewport
+      ? window.visualViewport.height
+      : window.innerHeight;
+  }
+
+  let _viewportChangeRaf = null;
   function handleViewportLayoutChange() {
-    syncViewportHeightVar();
-    if (shouldStickToBottom) {
-      scrollChatToBottom({ smooth: false, force: true });
-    }
+    if (_viewportChangeRaf) return;
+    _viewportChangeRaf = requestAnimationFrame(() => {
+      _viewportChangeRaf = null;
+
+      const currentH = _getViewportHeight();
+      // Si el viewport se encogió más de 100px → teclado virtual activo
+      const keyboardNowVisible = currentH < _initialViewportHeight - 100;
+
+      if (keyboardNowVisible !== _keyboardVisible) {
+        _keyboardVisible = keyboardNowVisible;
+
+        if (!keyboardNowVisible) {
+          // El teclado se ocultó: restauramos la altura completa
+          syncViewportHeightVar();
+        }
+        // Cuando el teclado APARECE no tocamos --app-height ni hacemos
+        // scroll; dejamos que el browser maneje la posición del input.
+        return;
+      }
+
+      // Cambio de tamaño real (rotación, resize de ventana): sí actualizamos
+      if (!_keyboardVisible) {
+        // Guardamos el nuevo alto base si el teclado no está activo
+        _initialViewportHeight = currentH;
+        syncViewportHeightVar();
+        if (shouldStickToBottom) {
+          scrollChatToBottom({ smooth: false, force: true });
+        }
+      }
+    });
   }
 
   function loadHistory() {
@@ -3553,9 +3615,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // ⬇️ NUEVO: auto-resize hasta 5 líneas
     messageInput.addEventListener("input", autoResizeMessageInput);
     messageInput.addEventListener("focus", () => {
-      setTimeout(() => {
-        scrollChatToBottom({ smooth: false, force: true });
-      }, 120);
+      // En móvil, cuando el teclado sube, el browser ya se encarga de
+      // hacer visible el elemento enfocado. Forzar un scroll aquí provoca
+      // el salto visible. Solo lo hacemos si el chat ya estaba al final
+      // y el teclado NO acaba de aparecer (esperamos a que se estabilice).
+      if (shouldStickToBottom) {
+        requestAnimationFrame(() => {
+          // Doble rAF para que el browser haya terminado de ajustar el layout
+          requestAnimationFrame(() => {
+            if (!_keyboardVisible) {
+              scrollChatToBottom({ smooth: false, force: true });
+            }
+          });
+        });
+      }
     });
     autoResizeMessageInput();
   }
@@ -3736,12 +3809,10 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("orientationchange", handleViewportLayoutChange);
 
   if (window.visualViewport) {
+    // Solo escuchamos "resize" (teclado sube/baja, rotación).
+    // "scroll" del visualViewport en iOS causa saltos innecesarios y lo omitimos.
     window.visualViewport.addEventListener(
       "resize",
-      handleViewportLayoutChange,
-    );
-    window.visualViewport.addEventListener(
-      "scroll",
       handleViewportLayoutChange,
     );
   }
