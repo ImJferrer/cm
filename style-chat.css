@@ -2093,3 +2093,51 @@ textarea {
     position: relative;
     z-index: 1;
 }
+
+/* ── Pagination: Load-more indicator (top of chat-box) ── */
+.load-more-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    color: var(--text-muted, #888);
+    font-size: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.2s;
+}
+.load-more-indicator.hidden { display: none; }
+.load-more-indicator.loading .load-more-text { display: none; }
+.load-more-indicator.loading .load-more-spinner { display: inline-block; }
+.load-more-spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Pagination: New-message indicator (bottom of scroll area) ── */
+.new-message-indicator {
+    position: sticky;
+    bottom: 0.75rem;
+    align-self: center;
+    background: var(--accent, #2dd4bf);
+    color: #fff;
+    padding: 0.35rem 1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 10;
+}
+.new-message-indicator.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+}

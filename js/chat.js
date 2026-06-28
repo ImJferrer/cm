@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const gmAuthMessage = document.getElementById("gm-auth-message");
   const gmAuthCancelBtn = document.getElementById("gm-auth-cancel");
   const gmAuthSubmitBtn = document.getElementById("gm-auth-submit");
+  const newMessageIndicatorEl = document.getElementById('new-message-indicator');
 
   let typingUsers = [];
 
@@ -112,6 +113,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Divisores de sesión: { text, afterIndex } donde afterIndex = messages.length en el momento de inserción
   let activeDividers = [];
   let sharedRosterState = { ...DEFAULT_SHARED_ROSTER_STATE };
+
+  // ── Pagination_Manager state ─────────────────────────────────
+  const INITIAL_BATCH     = 20;   // messages rendered on first load
+  const PAGE_SIZE         = 20;   // messages loaded per lazy-load step
+  const LOAD_MORE_TRIGGER = 150;  // px scrollTop threshold to trigger load
+
+  let windowStart = 0;   // index into messages[] of first rendered msg
+  let windowEnd   = 0;   // index into messages[] of last rendered msg + 1
+  let isLoading   = false; // prevents concurrent loadPreviousPage calls
 
   function getScrollContainer() {
     return chatScrollArea || chatBox;
@@ -522,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
         JSON.stringify(window.avatarsCache),
       );
       renderPlayers();
-      renderMessages();
+      renderWindow();
 
       // Divisor de bienvenida — exactamente una vez por sesión
       if (!welcomeDividerShown) {
@@ -548,7 +558,7 @@ document.addEventListener("DOMContentLoaded", () => {
           "dwjc2_avatars_cache",
           JSON.stringify(window.avatarsCache),
         );
-        renderMessages();
+        renderWindow();
       }
       return;
     }
@@ -2313,7 +2323,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (historyHydrated) return;
     loadHistory();
     historyHydrated = true;
-    renderMessages();
+    initVirtualWindow();
   }
 
   function applyServerChatVersion(version) {
@@ -2518,17 +2528,204 @@ document.addEventListener("DOMContentLoaded", () => {
     return htmlLines.join("<br>");
   }
 
+  function buildDividerNode(text) {
+    const el = document.createElement("div");
+    el.className = "system-divider";
+    el.textContent = text;
+    return el;
+  }
+
+  function getDividersForRange(start, end) {
+    return activeDividers.filter(d => d.afterIndex >= start && d.afterIndex <= end);
+  }
+
+  function updateLoadIndicator() {
+    let indicator = document.getElementById('load-more-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'load-more-indicator';
+      indicator.className = 'load-more-indicator';
+      indicator.setAttribute('aria-live', 'polite');
+      indicator.innerHTML = '<span class="load-more-spinner" aria-hidden="true"></span><span class="load-more-text">Cargar mensajes anteriores</span>';
+      if (chatBox && chatBox.firstChild) {
+        chatBox.insertBefore(indicator, chatBox.firstChild);
+      } else if (chatBox) {
+        chatBox.appendChild(indicator);
+      }
+    } else if (chatBox && indicator.parentNode !== chatBox) {
+      chatBox.insertBefore(indicator, chatBox.firstChild);
+    }
+
+    if (windowStart === 0) {
+      indicator.classList.add('hidden');
+      indicator.classList.remove('loading');
+    } else {
+      indicator.classList.remove('hidden');
+      if (isLoading) {
+        indicator.classList.add('loading');
+      } else {
+        indicator.classList.remove('loading');
+      }
+    }
+  }
+
+  function showNewMessageIndicator() {
+    if (newMessageIndicatorEl) newMessageIndicatorEl.classList.remove('hidden');
+  }
+
+  function hideNewMessageIndicator() {
+    if (newMessageIndicatorEl) newMessageIndicatorEl.classList.add('hidden');
+  }
+
+  function buildBatchFragment(startIdx, endIdx) {
+    const fragment = document.createDocumentFragment();
+    const rangeDividers = getDividersForRange(startIdx, endIdx);
+
+    // Group dividers by afterIndex for quick lookup
+    const dividersByIndex = {};
+    rangeDividers.forEach(({ text, afterIndex }) => {
+      if (!dividersByIndex[afterIndex]) dividersByIndex[afterIndex] = [];
+      dividersByIndex[afterIndex].push(text);
+    });
+
+    // Dividers that go BEFORE the first message in this range (afterIndex === startIdx)
+    (dividersByIndex[startIdx] || []).forEach(text => {
+      fragment.appendChild(buildDividerNode(text));
+    });
+
+    for (let i = startIdx; i < endIdx; i++) {
+      fragment.appendChild(buildMessageNode(messages[i]));
+      // Dividers that go AFTER message at index i (afterIndex === i + 1)
+      (dividersByIndex[i + 1] || []).forEach(text => {
+        fragment.appendChild(buildDividerNode(text));
+      });
+    }
+
+    return fragment;
+  }
+
   function renderSystemDivider(text) {
     if (!chatBox) return;
     // Registrar con la posición actual para intercalar correctamente en re-renders
     activeDividers.push({ text, afterIndex: messages.length });
-    const wasAtBottom = isChatNearBottom();
-    const el = document.createElement("div");
-    el.className = "system-divider";
-    el.textContent = text;
-    chatBox.appendChild(el);
-    if (wasAtBottom) {
-      scrollChatToBottom({ smooth: true, force: true });
+    // Only append to DOM if this position is within the current Virtual_Window
+    if (messages.length >= windowStart && messages.length <= windowEnd) {
+      const wasAtBottom = isChatNearBottom();
+      const el = buildDividerNode(text);
+      chatBox.appendChild(el);
+      if (wasAtBottom) {
+        scrollChatToBottom({ smooth: true, force: true });
+      }
+    }
+  }
+
+  function buildMessageNode(msg) {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("chat-message");
+    if (msg.author === player.name) wrapper.classList.add("mine");
+    if (msg.role === "narrator") wrapper.classList.add("narrator");
+
+    const inner = document.createElement("div");
+    inner.className = "chat-message-inner";
+
+    const avatar = msg.role === "narrator" ? null : createAvatarElement(msg.author);
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+
+    const metaLine = document.createElement("div");
+    metaLine.className = "chat-meta-line";
+
+    const authorSpan = document.createElement("span");
+    authorSpan.className = "chat-author";
+    authorSpan.textContent = msg.author;
+
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "chat-time";
+    timeSpan.textContent = msg.time;
+
+    if (msg.role !== "narrator") {
+      metaLine.appendChild(authorSpan);
+    }
+    metaLine.appendChild(timeSpan);
+
+    const textDiv = document.createElement("div");
+    textDiv.className = "chat-text";
+    textDiv.innerHTML = renderRichText(msg.text);
+
+    if (msg.role !== "narrator") {
+      bubble.appendChild(metaLine);
+    }
+    bubble.appendChild(textDiv);
+
+    if (msg.edited) {
+      const editedTag = document.createElement("div");
+      editedTag.className = "chat-edited-tag";
+      editedTag.textContent = "Editado";
+      bubble.appendChild(editedTag);
+    }
+
+    if (avatar) inner.appendChild(avatar);
+    inner.appendChild(bubble);
+    wrapper.appendChild(inner);
+
+    return wrapper;
+  }
+
+  function renderWindow() {
+    if (!chatBox) return;
+    chatBox.innerHTML = '';
+    const fragment = buildBatchFragment(windowStart, windowEnd);
+    chatBox.appendChild(fragment);
+    updateLoadIndicator();
+  }
+
+  function initVirtualWindow() {
+    windowStart = Math.max(0, messages.length - INITIAL_BATCH);
+    windowEnd   = messages.length;
+    renderWindow();
+    updateLoadIndicator();
+    scrollChatToBottom({ smooth: false, force: true });
+  }
+
+  function loadPreviousPage() {
+    if (isLoading || windowStart === 0) return;
+    isLoading = true;
+    updateLoadIndicator();
+    try {
+      // Find the first real message node (skip the load indicator at index 0)
+      const anchorEl = chatBox.children[1];
+      const anchorOffsetBefore = anchorEl ? anchorEl.getBoundingClientRect().top : 0;
+
+      const newStart = Math.max(0, windowStart - PAGE_SIZE);
+      const fragment = buildBatchFragment(newStart, windowStart);
+
+      // Insert fragment after the load indicator
+      // Note: loadIndicator.after(fragment) works with DocumentFragment; insertAdjacentElement does not.
+      const loadIndicator = document.getElementById('load-more-indicator');
+      if (loadIndicator && loadIndicator.parentNode === chatBox) {
+        loadIndicator.after(fragment);
+      } else {
+        chatBox.insertBefore(fragment, chatBox.firstChild);
+      }
+
+      // Anchor scroll: restore visual position
+      if (anchorEl) {
+        const anchorOffsetAfter = anchorEl.getBoundingClientRect().top;
+        const delta = anchorOffsetAfter - anchorOffsetBefore;
+        if (delta !== 0) {
+          (chatScrollArea || chatBox).scrollTop += delta;
+        } else if (anchorOffsetBefore === 0) {
+          // Fallback: estimate height
+          (chatScrollArea || chatBox).scrollTop += PAGE_SIZE * 60;
+        }
+      }
+
+      windowStart = newStart;
+      updateLoadIndicator();
+    } finally {
+      isLoading = false;
+      updateLoadIndicator();
     }
   }
 
@@ -2552,57 +2749,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     messages.forEach((msg, i) => {
-      const wrapper = document.createElement("div");
-      wrapper.classList.add("chat-message");
-      if (msg.author === player.name) wrapper.classList.add("mine");
-      if (msg.role === "narrator") wrapper.classList.add("narrator");
-
-      const inner = document.createElement("div");
-      inner.className = "chat-message-inner";
-
-      const avatar =
-        msg.role === "narrator" ? null : createAvatarElement(msg.author);
-
-      const bubble = document.createElement("div");
-      bubble.className = "chat-bubble";
-
-      const metaLine = document.createElement("div");
-      metaLine.className = "chat-meta-line";
-
-      const authorSpan = document.createElement("span");
-      authorSpan.className = "chat-author";
-      authorSpan.textContent = msg.author;
-
-      const timeSpan = document.createElement("span");
-      timeSpan.className = "chat-time";
-      timeSpan.textContent = msg.time;
-
-      if (msg.role !== "narrator") {
-        metaLine.appendChild(authorSpan);
-      }
-      metaLine.appendChild(timeSpan);
-
-      const textDiv = document.createElement("div");
-      textDiv.className = "chat-text";
-      textDiv.innerHTML = renderRichText(msg.text);
-
-      if (msg.role !== "narrator") {
-        bubble.appendChild(metaLine);
-      }
-      bubble.appendChild(textDiv);
-
-      if (msg.edited) {
-        const editedTag = document.createElement("div");
-        editedTag.className = "chat-edited-tag";
-        editedTag.textContent = "Editado";
-        bubble.appendChild(editedTag);
-      }
-
-      if (avatar) inner.appendChild(avatar);
-      inner.appendChild(bubble);
-      wrapper.appendChild(inner);
-
-      chatBox.appendChild(wrapper);
+      const node = buildMessageNode(msg);
+      chatBox.appendChild(node);
 
       // Insertar divisores que van después del mensaje en posición i+1
       (dividersByIndex[i + 1] || []).forEach((text) => {
@@ -2614,6 +2762,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     scrollChatToBottom({ smooth: false, force: false });
+  }
+
+  function appendMessage(msg) {
+    if (!chatBox) return;
+    const node = buildMessageNode(msg);
+    chatBox.appendChild(node);
+
+    // Insert any dividers that go right after this message
+    activeDividers.forEach(d => {
+      if (d.afterIndex === windowEnd + 1) {
+        chatBox.appendChild(buildDividerNode(d.text));
+      }
+    });
+
+    windowEnd++;
+    refreshStickToBottomState();
+
+    if (shouldStickToBottom) {
+      scrollChatToBottom({ smooth: true, force: true });
+      hideNewMessageIndicator();
+    } else if (msg.author !== player.name) {
+      showNewMessageIndicator();
+    }
   }
 
   function addMessage(text, author, options = {}) {
@@ -2646,9 +2817,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     saveHistory();
-    const forceScroll = !options.remote || shouldStickToBottom;
-    renderMessages();
-    scrollChatToBottom({ smooth: true, force: forceScroll });
+    appendMessage(messages[messages.length - 1]);
 
     // Sonido local para mensajes de IA generados por el GM (no llegan por WS de vuelta)
     if (!options.remote && role === "assistant") {
@@ -2677,6 +2846,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     shouldStickToBottom = true;
     historyHydrated = true;
+    windowStart = 0;
+    windowEnd = 0;
     renderMessages();
 
     // Limpiar divisores de sistema del DOM (defensa en profundidad)
@@ -3357,6 +3528,20 @@ document.addEventListener("DOMContentLoaded", () => {
     sendBtn.addEventListener("click", sendMessage);
   }
 
+  if (newMessageIndicatorEl) {
+    newMessageIndicatorEl.addEventListener('click', () => {
+      scrollChatToBottom({ smooth: true, force: true });
+      hideNewMessageIndicator();
+    });
+    newMessageIndicatorEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        scrollChatToBottom({ smooth: true, force: true });
+        hideNewMessageIndicator();
+      }
+    });
+  }
+
   if (messageInput) {
     messageInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -3539,9 +3724,12 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshStickToBottomState();
 
   if (chatScrollArea) {
-    chatScrollArea.addEventListener("scroll", refreshStickToBottomState, {
-      passive: true,
-    });
+    chatScrollArea.addEventListener("scroll", () => {
+      refreshStickToBottomState();
+      if (chatScrollArea.scrollTop <= LOAD_MORE_TRIGGER) {
+        loadPreviousPage();
+      }
+    }, { passive: true });
   }
 
   window.addEventListener("resize", handleViewportLayoutChange);
