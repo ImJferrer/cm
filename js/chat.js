@@ -314,6 +314,10 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   ];
   const AI_HISTORY_LIMIT = 80;
+  const AI_HISTORY_MAX_CHARS = 14000;
+  const AI_MESSAGE_MAX_CHARS = 1800;
+  const AI_SYSTEM_MAX_CHARS = 12000;
+  const AI_PLAYER_HISTORY_MAX_CHARS = 2000;
   const TYPING_MIN_DELAY_MS = 700;
   const SCROLL_BOTTOM_THRESHOLD = 96;
   const DEFAULT_SHARED_ROSTER_STATE = {
@@ -1299,6 +1303,37 @@ document.addEventListener("DOMContentLoaded", () => {
     if (persona === "gm" || persona === "sylvie") return normalizeDeepSeekModelId(gmSettings.model);
     const slot = getAISlot(persona);
     return normalizeDeepSeekModelId((slot?.model || "").trim() || gmSettings.model);
+  }
+
+  function truncateForAi(text, maxChars) {
+    const value = String(text || "").trim();
+    if (value.length <= maxChars) return value;
+    if (maxChars <= 28) return value.slice(0, Math.max(0, maxChars));
+    return `${value.slice(0, Math.max(0, maxChars - 28)).trim()}\n[contexto recortado]`;
+  }
+
+  function buildBoundedHistoryMessages() {
+    const recent = messages.slice(-AI_HISTORY_LIMIT);
+    const selected = [];
+    let remaining = AI_HISTORY_MAX_CHARS;
+
+    for (let index = recent.length - 1; index >= 0 && remaining > 0; index -= 1) {
+      const message = recent[index];
+      const author = message.role === "narrator" ? "Narrador sin nombre" : message.author;
+      const text = truncateForAi(message.text, AI_MESSAGE_MAX_CHARS);
+      const content = `${author}: ${text}`;
+      const role = message.role === "narrator"
+        ? "user"
+        : message.role || (message.author === player.name ? "user" : "assistant");
+      if (content.length > remaining) {
+        selected.push({ role, content: truncateForAi(content, remaining) });
+        break;
+      }
+      selected.push({ role, content });
+      remaining -= content.length;
+    }
+
+    return selected.reverse();
   }
 
   function getAllPersonaNames() {
@@ -3688,17 +3723,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const typingStart = Date.now();
 
     try {
-      // ⬆️ Ahora usamos más historial: AI_HISTORY_LIMIT
-      const historyMessages = messages.slice(-AI_HISTORY_LIMIT).map((m) => ({
-        role:
-          m.role === "narrator"
-            ? "user"
-            : m.role || (m.author === player.name ? "user" : "assistant"),
-        content:
-          m.role === "narrator"
-            ? `Narrador sin nombre: ${m.text}`
-            : `${m.author}: ${m.text}`,
-      }));
+      const historyMessages = buildBoundedHistoryMessages();
 
       const systemMsg =
         persona === "gm"
@@ -3708,14 +3733,14 @@ document.addEventListener("DOMContentLoaded", () => {
             : buildSystemLoreMessageForAISlot(persona);
 
       const payload = {
-        messages: [systemMsg, ...historyMessages],
+        messages: [{ ...systemMsg, content: truncateForAi(systemMsg.content, AI_SYSTEM_MAX_CHARS) }, ...historyMessages],
         model: sanitizeModelForApi(getPersonaModel(persona)),
         persona,
         gmRole: gmSettings.gmRole || "random",
         thinkEnabled: !!gmSettings.thinkEnabled,
         player: {
           name: player.name || "",
-          history: player.history || "",
+          history: truncateForAi(player.history, AI_PLAYER_HISTORY_MAX_CHARS),
         },
       };
 
