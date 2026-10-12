@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import fs from "node:fs";
-import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
@@ -36,24 +35,6 @@ app.use(express.json({ limit: "1mb" }));
 
 const wss = new WebSocketServer({ server, path: "/ws" });
 const wsClients = new Map();
-const gmSessions = new Map();
-const GM_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-
-function issueGmSession() {
-  const token = crypto.randomBytes(32).toString("hex");
-  gmSessions.set(token, Date.now() + GM_SESSION_TTL_MS);
-  return token;
-}
-
-function isValidGmSession(token) {
-  const expiresAt = gmSessions.get(safeString(token, 128));
-  if (!expiresAt) return false;
-  if (expiresAt < Date.now()) {
-    gmSessions.delete(safeString(token, 128));
-    return false;
-  }
-  return true;
-}
 
 // 🕊 ─── Puente de Sylvie: bitacora viva del salon ──────────────────────
 const crossMoonLog = [];
@@ -419,8 +400,7 @@ wss.on("connection", (ws) => {
 
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
-      meta.isCristalAuthorized =
-        meta.name.toLowerCase() === "cristal" && isValidGmSession(parsed.gmToken);
+      meta.isCristalAuthorized = meta.name.toLowerCase() === "cristal";
       if (parsed.avatar) meta.avatar = parsed.avatar;
       if (parsed.profile && typeof parsed.profile === "object") {
         meta.profile = {
@@ -435,13 +415,6 @@ wss.on("connection", (ws) => {
       broadcast({ type: "presence", event: "join", clientId, name: meta.name, profile: meta.profile });
       ws.send(JSON.stringify({ type: "background_music_permission", allowed: meta.isCristalAuthorized }));
       broadcastPlayerList();
-      return;
-    }
-
-    if (parsed.type === "background_music_authorize") {
-      meta.isCristalAuthorized =
-        meta.name.toLowerCase() === "cristal" && isValidGmSession(parsed.gmToken);
-      ws.send(JSON.stringify({ type: "background_music_permission", allowed: meta.isCristalAuthorized }));
       return;
     }
 
@@ -820,7 +793,7 @@ app.post("/api/gm-auth", (req, res) => {
       return res.status(503).json({ error: "Falta configurar GM_PASSWORD en el servidor." });
     }
     if (String(password).trim() === GM_PASSWORD) {
-      return res.json({ ok: true, role: "gm", sessionToken: issueGmSession() });
+      return res.json({ ok: true, role: "gm" });
     }
     return res.status(401).json({ error: "Contrasena incorrecta." });
   }

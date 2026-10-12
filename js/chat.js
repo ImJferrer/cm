@@ -267,7 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const HISTORY_KEY = "dwjc2_chat_history";
   const CHAT_VERSION_KEY = "dwjc2_chat_version";
   const GM_SETTINGS_KEY = "dwjc2_gm_settings";
-  const GM_SESSION_TOKEN_KEY = "dwjc2_gm_session_token";
   const SYLVIE_NAME = "Sylvie";
   const AI_SLOT_KEYS = ["ai1", "ai2"];
   const DEFAULT_AI_SLOTS = [
@@ -839,7 +838,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.type === "kicked") {
       localStorage.removeItem("dwjc2_player");
       localStorage.removeItem("dwjc2_gm_flag");
-      localStorage.removeItem(GM_SESSION_TOKEN_KEY);
       window.location.href = "index.html";
       return;
     }
@@ -909,7 +907,6 @@ document.addEventListener("DOMContentLoaded", () => {
       sendWs({
         type: "hello",
         name: playerName || "Viajero",
-        gmToken: localStorage.getItem(GM_SESSION_TOKEN_KEY) || "",
         avatar: player.avatarDataUrl,
         profile: {
           gender: player.gender || "",
@@ -995,8 +992,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const normalizedName = (player.name || "").toLowerCase().trim();
   const storedGmFlag = localStorage.getItem("dwjc2_gm_flag") === "1";
 
-  // El servidor autoriza las órdenes; el control solo aparece tras validar a Cristal.
-  YouTubeBG.setOwner(false);
+  // El control se muestra únicamente al pasaporte llamado Cristal.
+  YouTubeBG.setOwner(normalizedName === "cristal");
   YouTubeBG.setCommandHandler((command) => {
     sendWs({ type: "background_music_command", ...command });
   });
@@ -1139,10 +1136,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Éxito: eres GM en este navegador
       localStorage.setItem("dwjc2_gm_flag", "1");
-      if (data.sessionToken) {
-        localStorage.setItem(GM_SESSION_TOKEN_KEY, data.sessionToken);
-        sendWs({ type: "background_music_authorize", gmToken: data.sessionToken });
-      }
       isGM = true;
       gmSettings.gmEnabled = true;
       saveGMSettings();
@@ -3166,7 +3159,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function logout() {
     localStorage.removeItem("dwjc2_player");
     localStorage.removeItem("dwjc2_gm_flag");
-    localStorage.removeItem(GM_SESSION_TOKEN_KEY);
     if (wsState.ws) wsState.ws.close();
     window.location.href = "index.html";
   }
