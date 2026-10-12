@@ -1199,7 +1199,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let gmSettings = {
     gmName: "...", // nombre visible del GM (default "...")
-    model: "deepseek-v4-pro",
+    model: "deepseek-flash",
     extraPrompt: "",
     avatarEmoji: "✒️",
     avatarImageDataUrl: "",
@@ -1231,6 +1231,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (parsed && typeof parsed === "object") {
         gmSettings = { ...gmSettings, ...parsed };
         gmSettings.aiSlots = normalizeAISlots(gmSettings.aiSlots);
+        gmSettings.model = normalizeDeepSeekModelId(gmSettings.model);
+        gmSettings.aiSlots.forEach((slot) => {
+          slot.model = normalizeDeepSeekModelId(slot.model);
+        });
 
         // compat antigua: si tenía "moderationEnabled", úsalo como gmModerationEnabled
         if (
@@ -1252,6 +1256,18 @@ document.addEventListener("DOMContentLoaded", () => {
       ...(slots[index] && typeof slots[index] === "object" ? slots[index] : {}),
       key: defaults.key,
     }));
+  }
+
+  function normalizeDeepSeekModelId(model) {
+    const id = String(model || "").trim();
+    return [
+      "deepseek-v4-flash",
+      "deepseek-v4-flash-vision-exp",
+      "deepseek-chat",
+      "deepseek-reasoner",
+    ].includes(id)
+      ? "deepseek-flash"
+      : id;
   }
 
   function getAISlots() {
@@ -1280,9 +1296,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getPersonaModel(persona) {
-    if (persona === "gm" || persona === "sylvie") return gmSettings.model;
+    if (persona === "gm" || persona === "sylvie") return normalizeDeepSeekModelId(gmSettings.model);
     const slot = getAISlot(persona);
-    return (slot?.model || "").trim() || gmSettings.model;
+    return normalizeDeepSeekModelId((slot?.model || "").trim() || gmSettings.model);
   }
 
   function getAllPersonaNames() {
@@ -4157,12 +4173,11 @@ document.addEventListener("DOMContentLoaded", () => {
           <label class="gm-field">
             <span>Modelo</span>
             <select id="gm-model-select">
+              <option value="deepseek-flash">deepseek-flash (DeepSeek V4.1 Flash)</option>
               <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
               <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
               <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
               <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
-              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
-              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
               <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
             </select>
@@ -4242,12 +4257,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>Modelo de IA 1</span>
             <select id="ai1-model-select">
               <option value="">Usar modelo del GM</option>
+              <option value="deepseek-flash">deepseek-flash (DeepSeek V4.1 Flash)</option>
               <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
               <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
               <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
               <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
-              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
-              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
               <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
             </select>
@@ -4296,12 +4310,11 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>Modelo de IA 2</span>
             <select id="ai2-model-select">
               <option value="">Usar modelo del GM</option>
+              <option value="deepseek-flash">deepseek-flash (DeepSeek V4.1 Flash)</option>
               <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek V4 Pro)</option>
               <option value="llama-3.3-70b-cerebras">llama-3.3-70b (Cerebras)</option>
               <option value="qwen-3-32b">qwen-3-32b (Cerebras)</option>
               <option value="gpt-oss-120b">gpt-oss-120b (Cerebras)</option>
-              <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
-              <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
               <option value="gemini-2.5-flash">gemini-2.5-flash (Google)</option>
               <option value="gemini-1.5-pro">gemini-1.5-pro (Google)</option>
             </select>

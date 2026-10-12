@@ -630,7 +630,7 @@ app.post("/api/chat", async (req, res) => {
         ]
         : [];
 
-    const targetModel = normalizeModel(model) || "deepseek-v4-flash";
+    const targetModel = normalizeModel(model) || "deepseek-flash";
     const isQwen = /^qwen-3-32b/i.test(targetModel);
     const allowThinking = !!thinkEnabled;
 
@@ -671,19 +671,26 @@ app.post("/api/chat", async (req, res) => {
         return res.status(500).json({ error: "Falta DEEPSEEK_API_KEY para usar modelos DeepSeek" });
       }
 
+      const deepseekPayload = {
+        model: targetModel,
+        stream: false,
+        messages: finalMessages,
+        max_tokens: 400,
+        thinking: { type: allowThinking ? "enabled" : "disabled" },
+      };
+      if (allowThinking) {
+        deepseekPayload.reasoning_effort = "high";
+      } else {
+        deepseekPayload.temperature = 0.8;
+      }
+
       const deepseekRes = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
         },
-        body: JSON.stringify({
-          model: targetModel,
-          stream: false,
-          messages: finalMessages,
-          temperature: 0.8,
-          max_tokens: 400,
-        }),
+        body: JSON.stringify(deepseekPayload),
       });
 
       if (!deepseekRes.ok) {
