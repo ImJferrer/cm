@@ -235,9 +235,6 @@ function buildPlayerList() {
     .filter((meta) => {
       const normalizedName = safeString(meta?.name, 40).trim().toLowerCase();
       if (!normalizedName) return true;
-      if (chatState.roster.gmVisible === false && normalizedName === "cristal") {
-        return false;
-      }
       if (
         chatState.roster.sylvieVisible === false &&
         normalizedName === "sylvie"
