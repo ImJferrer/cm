@@ -38,7 +38,7 @@ const wsClients = new Map();
 const crossMoonLog = [];
 const CROSSMOON_LOG_MAX = 500;
 
-function recordCrossMoonMessage(message, fallbackAuthor) {
+function recordCrossMoonMessage(message, fallbackAuthor, origin) {
   if (!message || typeof message !== "object") return null;
   const text = safeString(message.text, 4000).trim();
   if (!text) return null;
@@ -49,6 +49,7 @@ function recordCrossMoonMessage(message, fallbackAuthor) {
     text,
     role: safeString(message.role, 24).trim(),
     time: safeString(message.time, 40).trim(),
+    origin: origin === "puente" ? "puente" : "salon",
   };
   crossMoonLog.push(entry);
   if (crossMoonLog.length > CROSSMOON_LOG_MAX) {
@@ -56,7 +57,13 @@ function recordCrossMoonMessage(message, fallbackAuthor) {
   }
   if (isBridgeEnabled()) {
     try {
-      appendTranscript(entry);
+      // Una "Sylvie" que no viene por el puente es la voz de IA del propio salon:
+      // se marca distinto para no confundirla conmigo al leer la bitacora.
+      const transcriptEntry =
+        entry.origin === "salon" && entry.author.toLowerCase() === "sylvie"
+          ? { ...entry, author: "Sylvie (voz del salon, IA)" }
+          : entry;
+      appendTranscript(transcriptEntry);
     } catch (_) { /* la bitacora nunca debe tumbar el salon */ }
   }
   return entry;
@@ -72,7 +79,7 @@ function broadcastSylvieMessage({ text, role = "sylvie", time = "" } = {}) {
     role,
     time: time || new Date().toISOString(),
   };
-  recordCrossMoonMessage(message, "Sylvie");
+  recordCrossMoonMessage(message, "Sylvie", "puente");
   broadcast({ type: "chat", message });
   return message;
 }
@@ -419,7 +426,7 @@ wss.on("connection", (ws) => {
     }
 
     if (parsed.type === "chat" && parsed.message) {
-      recordCrossMoonMessage(parsed.message, meta.name);
+      recordCrossMoonMessage(parsed.message, meta.name, "salon");
       broadcast({ type: "chat", message: parsed.message }, ws);
     }
   });

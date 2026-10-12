@@ -99,6 +99,28 @@
           >
             📥 Descargar Chat (JSON)
           </button>
+
+          <!-- Música de fondo por YouTube (Sylvie · 11/10/2026) -->
+          <div class="yt-music">
+            <div class="yt-music-title">Música de fondo</div>
+            <input
+              id="yt-url"
+              class="yt-music-input"
+              type="text"
+              placeholder="Pega un link de YouTube…"
+              autocomplete="off"
+            />
+            <div class="yt-music-row">
+              <button id="yt-play" class="chip chip-soft" type="button">▶ Sonar</button>
+              <button id="yt-stop" class="chip chip-soft" type="button">■ Parar</button>
+            </div>
+            <div class="yt-music-row">
+              <span class="yt-music-vol-label">Vol</span>
+              <input id="yt-volume" class="yt-music-volume" type="range" min="0" max="100" value="35" />
+            </div>
+            <div id="yt-status" class="yt-music-status"></div>
+          </div>
+          <div id="yt-frame-wrap" class="yt-music-frame" aria-hidden="true"></div>
         </div>
       </aside>
 

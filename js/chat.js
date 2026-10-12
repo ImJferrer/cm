@@ -1,4 +1,117 @@
 document.addEventListener("DOMContentLoaded", () => {
+
+  // ── Música de fondo por YouTube (Sylvie · 11/10/2026) ────────────────
+  const YouTubeBG = (() => {
+    const urlInput = document.getElementById("yt-url");
+    const playBtn = document.getElementById("yt-play");
+    const stopBtn = document.getElementById("yt-stop");
+    const volInput = document.getElementById("yt-volume");
+    const statusEl = document.getElementById("yt-status");
+    const wrap = document.getElementById("yt-frame-wrap");
+    if (!urlInput || !wrap) return { play() {}, stop() {}, parseId() { return ""; } };
+
+    let player = null;
+    let pendingId = "";
+    let apiLoading = false;
+
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
+
+    function parseId(text) {
+      const raw = String(text || "").trim();
+      if (!raw) return "";
+      if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
+      try {
+        const u = new URL(raw);
+        if (u.hostname.includes("youtu.be")) {
+          const id = u.pathname.replace(/^\//, "").split("/")[0];
+          return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : "";
+        }
+        const v = u.searchParams.get("v");
+        if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+        const parts = u.pathname.split("/").filter(Boolean);
+        const last = parts[parts.length - 1] || "";
+        return /^[A-Za-z0-9_-]{11}$/.test(last) ? last : "";
+      } catch (_) { return ""; }
+    }
+
+    function volume() {
+      const v = Number(volInput && volInput.value);
+      return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 35;
+    }
+
+    function applyVolume() {
+      if (player && player.setVolume) { try { player.setVolume(volume()); } catch (_) {} }
+    }
+
+    function loadApi(cb) {
+      if (window.YT && window.YT.Player) { cb(); return; }
+      if (apiLoading) { window.addEventListener("yt-api-ready", cb, { once: true }); return; }
+      apiLoading = true;
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = function () {
+        if (typeof prev === "function") { try { prev(); } catch (_) {} }
+        window.dispatchEvent(new Event("yt-api-ready"));
+      };
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.async = true;
+      s.onerror = () => { apiLoading = false; setStatus("No se pudo cargar YouTube."); };
+      document.head.appendChild(s);
+    }
+
+    function ensureHost() {
+      let host = document.getElementById("yt-player-host");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "yt-player-host";
+        wrap.appendChild(host);
+      }
+      return host;
+    }
+
+    function play(id) {
+      pendingId = id;
+      loadApi(() => {
+        if (!pendingId) return;
+        if (player && player.loadVideoById) {
+          try { player.loadVideoById(pendingId); player.playVideo(); } catch (_) {}
+          applyVolume();
+          setStatus("Sonando.");
+          return;
+        }
+        player = new window.YT.Player(ensureHost(), {
+          videoId: pendingId,
+          playerVars: { autoplay: 1, loop: 1, playlist: pendingId, controls: 0, modestbranding: 1, playsinline: 1, rel: 0 },
+          events: {
+            onReady: (e) => { applyVolume(); try { e.target.playVideo(); } catch (_) {} setStatus("Sonando."); },
+            onError: () => setStatus("Ese video no se puede reproducir aqui.")
+          }
+        });
+      });
+    }
+
+    function stop() {
+      if (player) {
+        try { player.stopVideo && player.stopVideo(); } catch (_) {}
+        try { player.destroy && player.destroy(); } catch (_) {}
+      }
+      player = null;
+      wrap.innerHTML = "";
+      setStatus("En silencio.");
+    }
+
+    if (playBtn) playBtn.addEventListener("click", () => {
+      const id = parseId(urlInput.value);
+      if (!id) { setStatus("Ese link no parece de YouTube."); return; }
+      setStatus("Cargando...");
+      play(id);
+    });
+    if (stopBtn) stopBtn.addEventListener("click", stop);
+    if (volInput) volInput.addEventListener("input", applyVolume);
+
+    return { play, stop, parseId };
+  })();
+
   const chatBox = document.getElementById("chat-box");
   const chatScrollArea = document.querySelector(".chat-scroll-area");
   const messageInput = document.getElementById("message-input");
@@ -974,7 +1087,7 @@ document.addEventListener("DOMContentLoaded", () => {
     sylvieAvatarEmoji: "👑",
     sylvieAvatarImageDataUrl: "",
     sylvieExtraPrompt: "",
-    sylvieVisible: false, // mostrar Sylvie en la lista de jugadores
+    sylvieVisible: true, // mostrar Sylvie en la lista de jugadores (Sylvie, 11/10/2026)
   };
 
   function loadGMSettings() {
