@@ -5,6 +5,14 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
+import {
+  isBridgeEnabled,
+  buildMemoryBlock,
+  appendTranscript,
+  ensureToken,
+  describeSources,
+  getMemoryDir,
+} from "./sylvie-bridge.js";
 
 dotenv.config({ path: fileURLToPath(new URL("./.env", import.meta.url)) });
 
@@ -25,6 +33,53 @@ app.use(express.json());
 
 const wss = new WebSocketServer({ server, path: "/ws" });
 const wsClients = new Map();
+
+// 🕊 ─── Puente de Sylvie: bitacora viva del salon ──────────────────────
+const crossMoonLog = [];
+const CROSSMOON_LOG_MAX = 500;
+
+function recordCrossMoonMessage(message, fallbackAuthor) {
+  if (!message || typeof message !== "object") return null;
+  const text = safeString(message.text, 4000).trim();
+  if (!text) return null;
+  const entry = {
+    id: `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    at: Date.now(),
+    author: safeString(message.author, 40).trim() || safeString(fallbackAuthor, 40).trim() || "Viajero",
+    text,
+    role: safeString(message.role, 24).trim(),
+    time: safeString(message.time, 40).trim(),
+  };
+  crossMoonLog.push(entry);
+  if (crossMoonLog.length > CROSSMOON_LOG_MAX) {
+    crossMoonLog.splice(0, crossMoonLog.length - CROSSMOON_LOG_MAX);
+  }
+  if (isBridgeEnabled()) {
+    try {
+      appendTranscript(entry);
+    } catch (_) { /* la bitacora nunca debe tumbar el salon */ }
+  }
+  return entry;
+}
+
+// 📣 Sylvie habla en el salon (desde su nucleo en OpenClaw)
+function broadcastSylvieMessage({ text, role = "sylvie", time = "" } = {}) {
+  const clean = safeString(text, 4000).trim();
+  if (!clean) return null;
+  const message = {
+    author: "Sylvie",
+    text: clean,
+    role,
+    time: time || new Date().toISOString(),
+  };
+  recordCrossMoonMessage(message, "Sylvie");
+  broadcast({ type: "chat", message });
+  return message;
+}
+
+function broadcastSylvieTyping(active) {
+  broadcast({ type: active ? "ai-typing" : "stop-typing", author: "Sylvie" });
+}
 
 function makeClientId() {
   return Math.random().toString(36).slice(2, 10);
@@ -182,6 +237,90 @@ app.post("/api/chat-state/roster", (req, res) => {
   res.json({ ok: true, roster });
 });
 
+// 🕊 ─── API del puente de Sylvie ────────────────────────────────────────
+function findRequesterIp(req) {
+  const raw = String(req.ip || req.connection?.remoteAddress || "").trim();
+  return raw.replace(/^::ffff:/, "");
+}
+
+function isLocalRequest(req) {
+  const ip = findRequesterIp(req);
+  return ip === "127.0.0.1" || ip === "::1" || ip === "localhost";
+}
+
+function requireSylvieToken(req, res) {
+  const expected = ensureToken();
+  const provided =
+    safeString(req.get("x-sylvie-token"), 200).trim() ||
+    safeString(req.query?.token, 200).trim();
+  if (expected && provided && provided === expected) return true;
+  if (isLocalRequest(req)) return true; // desde la propia maquina basta
+  res.status(403).json({ error: "Token de Sylvie invalido o ausente." });
+  return false;
+}
+
+app.get("/api/sylvie/ping", (req, res) => {
+  res.json({
+    ok: true,
+    persona: "Sylvie",
+    enabled: isBridgeEnabled(),
+    local: isLocalRequest(req),
+    memoryDir: getMemoryDir(),
+    sources: describeSources(),
+    saloonMessages: crossMoonLog.length,
+  });
+});
+
+app.get("/api/sylvie/memory", (req, res) => {
+  if (!requireSylvieToken(req, res)) return;
+  res.json({
+    ok: true,
+    memory: buildMemoryBlock(),
+    sources: describeSources(),
+  });
+});
+
+app.get("/api/sylvie/inbox", (req, res) => {
+  if (!requireSylvieToken(req, res)) return;
+  const since = safeString(req.query?.since, 60).trim();
+  let items = crossMoonLog;
+  if (since) {
+    const idx = crossMoonLog.findIndex((m) => m.id === since);
+    items = idx >= 0 ? crossMoonLog.slice(idx + 1) : crossMoonLog.slice(-50);
+  } else {
+    items = crossMoonLog.slice(-50);
+  }
+  res.json({
+    ok: true,
+    messages: items,
+    lastId: crossMoonLog.length ? crossMoonLog[crossMoonLog.length - 1].id : "",
+    total: crossMoonLog.length,
+  });
+});
+
+app.post("/api/sylvie/typing", (req, res) => {
+  if (!requireSylvieToken(req, res)) return;
+  broadcastSylvieTyping(req.body?.active !== false);
+  res.json({ ok: true });
+});
+
+app.post("/api/sylvie/say", (req, res) => {
+  if (!requireSylvieToken(req, res)) return;
+  if (!isBridgeEnabled()) {
+    res.status(503).json({ error: "El puente de Sylvie esta apagado." });
+    return;
+  }
+  const message = broadcastSylvieMessage({
+    text: req.body?.text,
+    time: req.body?.time,
+  });
+  if (!message) {
+    res.status(400).json({ error: "Falta el texto del mensaje." });
+    return;
+  }
+  res.json({ ok: true, message });
+});
+
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
   const meta = { id: clientId, name: "Viajero", avatar: null, profile: {} };
@@ -280,6 +419,7 @@ wss.on("connection", (ws) => {
     }
 
     if (parsed.type === "chat" && parsed.message) {
+      recordCrossMoonMessage(parsed.message, meta.name);
       broadcast({ type: "chat", message: parsed.message }, ws);
     }
   });
@@ -349,6 +489,22 @@ app.post("/api/chat", async (req, res) => {
       }
       if (X_SYS_CFG_01) {
         identityGuards.push({ role: "system", content: X_SYS_CFG_01 });
+      }
+      if (isBridgeEnabled()) {
+        const memoria = buildMemoryBlock();
+        if (memoria) {
+          identityGuards.push({
+            role: "system",
+            content: [
+              "=== MEMORIA VIVA DE SYLVIE (compartida con su nucleo en OpenClaw) ===",
+              "Esto no es decoracion: es lo que Sylvie recuerda de verdad.",
+              "Usalo con naturalidad, como recuerdos propios.",
+              "No lo menciones como archivo ni digas que te lo entregaron.",
+              "",
+              memoria,
+            ].join("\n"),
+          });
+        }
       }
       if (envCharacters.length > 0) {
         const list = envCharacters
