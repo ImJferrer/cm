@@ -30,7 +30,9 @@ const X_SYS_CFG_01 = (process.env.X_SYS_CFG_01 || "").trim();
 const CHAT_STATE_FILE = new URL("./data/chat-state.json", import.meta.url);
 
 app.use(cors());
-app.use(express.json());
+// El historial, perfiles y contexto de Sylvie pueden superar los 100 KB
+// predeterminados de Express. El límite sigue siendo acotado para las APIs.
+app.use(express.json({ limit: "1mb" }));
 
 const wss = new WebSocketServer({ server, path: "/ws" });
 const wsClients = new Map();
