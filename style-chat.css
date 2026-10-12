@@ -567,6 +567,10 @@ body.chat-page {
     color: rgba(226, 232, 240, 0.82);
 }
 
+.yt-music-enable[hidden] {
+    display: none;
+}
+
 .yt-music-playlist {
     font-size: 0.7rem;
     line-height: 1.4;

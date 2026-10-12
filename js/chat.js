@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const volInput = document.getElementById("yt-volume");
     const statusEl = document.getElementById("yt-status");
     const nowPlayingEl = document.getElementById("yt-now-playing");
+    const enableBtn = document.getElementById("yt-enable");
     const ownerControls = document.getElementById("yt-owner-controls");
     const playlistEl = document.getElementById("yt-playlist");
     const wrap = document.getElementById("yt-frame-wrap");
@@ -94,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateLabels() {
       const count = currentState.playlist.length;
+      if (enableBtn) enableBtn.hidden = !currentState.playing;
       if (nowPlayingEl) {
         nowPlayingEl.textContent = currentState.playing
           ? `Sonando en la Sala · pista ${currentState.currentIndex + 1} de ${count}.`
@@ -143,9 +145,12 @@ document.addEventListener("DOMContentLoaded", () => {
               applyVolume();
               try { e.target.seekTo(offset, true); e.target.playVideo(); } catch (_) {}
               activePlaybackKey = key;
-              setStatus("Sonando en la Sala.");
+              setStatus("Música lista. Pulsa «Activar música» si no suena.");
             },
             onStateChange: (e) => {
+              if (window.YT && e.data === window.YT.PlayerState.PLAYING) {
+                setStatus("Sonando en la Sala.");
+              }
               if (window.YT && e.data === window.YT.PlayerState.ENDED && isOwner && currentState.playing) {
                 if (typeof endedHandler === "function") endedHandler();
               }
@@ -191,6 +196,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playBtn) playBtn.addEventListener("click", () => sendCommand({ action: "play" }));
     if (nextBtn) nextBtn.addEventListener("click", () => sendCommand({ action: "next" }));
     if (stopBtn) stopBtn.addEventListener("click", () => sendCommand({ action: "stop" }));
+    if (enableBtn) enableBtn.addEventListener("click", () => {
+      if (!currentState.playing) return;
+      if (player && player.playVideo) {
+        try { player.playVideo(); setStatus("Activando música…"); } catch (_) {}
+      } else {
+        setStatus("Preparando música…");
+        startPlayback();
+      }
+    });
     if (volInput) volInput.addEventListener("input", applyVolume);
     document.addEventListener("pointerdown", () => {
       if (currentState.playing && player && player.playVideo) {
