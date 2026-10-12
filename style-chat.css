@@ -561,6 +561,23 @@ body.chat-page {
     color: rgba(226, 232, 240, 0.65);
 }
 
+.yt-music-now-playing {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: rgba(226, 232, 240, 0.82);
+}
+
+.yt-music-playlist {
+    font-size: 0.7rem;
+    line-height: 1.4;
+    color: rgba(226, 232, 240, 0.55);
+    word-break: break-word;
+}
+
+#yt-owner-controls[hidden] {
+    display: none;
+}
+
 .yt-music-input {
     width: 100%;
     padding: 0.45rem 0.6rem;

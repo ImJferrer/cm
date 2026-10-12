@@ -1,18 +1,27 @@
 document.addEventListener("DOMContentLoaded", () => {
 
-  // ── Música de fondo por YouTube (Sylvie · 11/10/2026) ────────────────
+  // ── Música de fondo compartida de la Sala ───────────────────────────
   const YouTubeBG = (() => {
     const urlInput = document.getElementById("yt-url");
+    const addBtn = document.getElementById("yt-add");
     const playBtn = document.getElementById("yt-play");
+    const nextBtn = document.getElementById("yt-next");
     const stopBtn = document.getElementById("yt-stop");
     const volInput = document.getElementById("yt-volume");
     const statusEl = document.getElementById("yt-status");
+    const nowPlayingEl = document.getElementById("yt-now-playing");
+    const ownerControls = document.getElementById("yt-owner-controls");
+    const playlistEl = document.getElementById("yt-playlist");
     const wrap = document.getElementById("yt-frame-wrap");
-    if (!urlInput || !wrap) return { play() {}, stop() {}, parseId() { return ""; } };
+    if (!wrap) return { applyState() {}, setOwner() {}, setCommandHandler() {}, setEndedHandler() {} };
 
     let player = null;
-    let pendingId = "";
     let apiLoading = false;
+    let isOwner = false;
+    let currentState = { playlist: [], currentIndex: 0, playing: false, startedAt: 0 };
+    let activePlaybackKey = "";
+    let commandHandler = null;
+    let endedHandler = null;
 
     function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
 
@@ -59,6 +68,46 @@ document.addEventListener("DOMContentLoaded", () => {
       document.head.appendChild(s);
     }
 
+    function normalizeState(raw) {
+      const playlist = Array.isArray(raw?.playlist)
+        ? raw.playlist.filter((id) => /^[A-Za-z0-9_-]{11}$/.test(String(id || "")))
+        : [];
+      const requestedIndex = Number(raw?.currentIndex);
+      const currentIndex = playlist.length
+        ? Math.max(0, Math.min(playlist.length - 1, Number.isInteger(requestedIndex) ? requestedIndex : 0))
+        : 0;
+      return {
+        playlist,
+        currentIndex,
+        playing: Boolean(raw?.playing) && playlist.length > 0,
+        startedAt: Number(raw?.startedAt) || 0,
+      };
+    }
+
+    function currentTrack() {
+      return currentState.playlist[currentState.currentIndex] || "";
+    }
+
+    function playbackKey() {
+      return `${currentTrack()}:${currentState.startedAt}`;
+    }
+
+    function updateLabels() {
+      const count = currentState.playlist.length;
+      if (nowPlayingEl) {
+        nowPlayingEl.textContent = currentState.playing
+          ? `Sonando en la Sala · pista ${currentState.currentIndex + 1} de ${count}.`
+          : count
+            ? `Lista preparada: ${count} pista${count === 1 ? "" : "s"}.`
+            : "En silencio.";
+      }
+      if (playlistEl) {
+        playlistEl.textContent = count
+          ? `Lista compartida: ${count} pista${count === 1 ? "" : "s"}.`
+          : "La lista está vacía.";
+      }
+    }
+
     function ensureHost() {
       let host = document.getElementById("yt-player-host");
       if (!host) {
@@ -69,47 +118,95 @@ document.addEventListener("DOMContentLoaded", () => {
       return host;
     }
 
-    function play(id) {
-      pendingId = id;
+    function startPlayback() {
+      const id = currentTrack();
+      if (!id || !currentState.playing) return;
+      const key = playbackKey();
       loadApi(() => {
-        if (!pendingId) return;
+        if (!currentState.playing || key !== playbackKey()) return;
+        const offset = Math.max(0, (Date.now() - currentState.startedAt) / 1000);
         if (player && player.loadVideoById) {
-          try { player.loadVideoById(pendingId); player.playVideo(); } catch (_) {}
+          try {
+            player.loadVideoById({ videoId: id, startSeconds: offset });
+            player.playVideo();
+          } catch (_) {}
           applyVolume();
-          setStatus("Sonando.");
+          activePlaybackKey = key;
+          setStatus("Sonando en la Sala.");
           return;
         }
         player = new window.YT.Player(ensureHost(), {
-          videoId: pendingId,
-          playerVars: { autoplay: 1, loop: 1, playlist: pendingId, controls: 0, modestbranding: 1, playsinline: 1, rel: 0 },
+          videoId: id,
+          playerVars: { autoplay: 1, controls: 0, modestbranding: 1, playsinline: 1, rel: 0, start: Math.floor(offset) },
           events: {
-            onReady: (e) => { applyVolume(); try { e.target.playVideo(); } catch (_) {} setStatus("Sonando."); },
-            onError: () => setStatus("Ese video no se puede reproducir aqui.")
+            onReady: (e) => {
+              applyVolume();
+              try { e.target.seekTo(offset, true); e.target.playVideo(); } catch (_) {}
+              activePlaybackKey = key;
+              setStatus("Sonando en la Sala.");
+            },
+            onStateChange: (e) => {
+              if (window.YT && e.data === window.YT.PlayerState.ENDED && isOwner && currentState.playing) {
+                if (typeof endedHandler === "function") endedHandler();
+              }
+            },
+            onError: () => setStatus("Ese video no se puede reproducir aquí.")
           }
         });
       });
     }
 
-    function stop() {
+    function stopPlayer() {
       if (player) {
         try { player.stopVideo && player.stopVideo(); } catch (_) {}
-        try { player.destroy && player.destroy(); } catch (_) {}
       }
-      player = null;
-      wrap.innerHTML = "";
-      setStatus("En silencio.");
     }
 
-    if (playBtn) playBtn.addEventListener("click", () => {
+    function applyState(rawState) {
+      currentState = normalizeState(rawState);
+      updateLabels();
+      if (!currentState.playing) {
+        stopPlayer();
+        activePlaybackKey = "";
+        setStatus("En silencio.");
+        return;
+      }
+      if (activePlaybackKey !== playbackKey()) {
+        setStatus("Cargando música de la Sala…");
+        startPlayback();
+      }
+    }
+
+    function sendCommand(command) {
+      if (isOwner && typeof commandHandler === "function") commandHandler(command);
+    }
+
+    if (addBtn) addBtn.addEventListener("click", () => {
       const id = parseId(urlInput.value);
       if (!id) { setStatus("Ese link no parece de YouTube."); return; }
-      setStatus("Cargando...");
-      play(id);
+      sendCommand({ action: "add", videoId: id });
+      urlInput.value = "";
+      setStatus("Agregando a la lista…");
     });
-    if (stopBtn) stopBtn.addEventListener("click", stop);
+    if (playBtn) playBtn.addEventListener("click", () => sendCommand({ action: "play" }));
+    if (nextBtn) nextBtn.addEventListener("click", () => sendCommand({ action: "next" }));
+    if (stopBtn) stopBtn.addEventListener("click", () => sendCommand({ action: "stop" }));
     if (volInput) volInput.addEventListener("input", applyVolume);
+    document.addEventListener("pointerdown", () => {
+      if (currentState.playing && player && player.playVideo) {
+        try { player.playVideo(); setStatus("Sonando en la Sala."); } catch (_) {}
+      }
+    }, { passive: true });
 
-    return { play, stop, parseId };
+    return {
+      applyState,
+      setOwner(allowed) {
+        isOwner = Boolean(allowed);
+        if (ownerControls) ownerControls.hidden = !isOwner;
+      },
+      setCommandHandler(handler) { commandHandler = handler; },
+      setEndedHandler(handler) { endedHandler = handler; },
+    };
   })();
 
   const chatBox = document.getElementById("chat-box");
@@ -170,6 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const HISTORY_KEY = "dwjc2_chat_history";
   const CHAT_VERSION_KEY = "dwjc2_chat_version";
   const GM_SETTINGS_KEY = "dwjc2_gm_settings";
+  const GM_SESSION_TOKEN_KEY = "dwjc2_gm_session_token";
   const SYLVIE_NAME = "Sylvie";
   const AI_SLOT_KEYS = ["ai1", "ai2"];
   const DEFAULT_AI_SLOTS = [
@@ -641,12 +739,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (data.type === "welcome") {
       wsState.clientId = data.clientId || null;
+      if (data.backgroundMusic) {
+        YouTubeBG.applyState(data.backgroundMusic);
+      }
       if (data.roster) {
         applySharedRosterState(data.roster);
       }
       if (data.chatVersion) {
         applyServerChatVersion(data.chatVersion);
       }
+      return;
+    }
+
+    if (data.type === "background_music_state" && data.backgroundMusic) {
+      YouTubeBG.applyState(data.backgroundMusic);
+      return;
+    }
+
+    if (data.type === "background_music_permission") {
+      YouTubeBG.setOwner(Boolean(data.allowed));
       return;
     }
 
@@ -728,6 +839,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.type === "kicked") {
       localStorage.removeItem("dwjc2_player");
       localStorage.removeItem("dwjc2_gm_flag");
+      localStorage.removeItem(GM_SESSION_TOKEN_KEY);
       window.location.href = "index.html";
       return;
     }
@@ -797,6 +909,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sendWs({
         type: "hello",
         name: playerName || "Viajero",
+        gmToken: localStorage.getItem(GM_SESSION_TOKEN_KEY) || "",
         avatar: player.avatarDataUrl,
         profile: {
           gender: player.gender || "",
@@ -881,6 +994,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- detección de GM + nombres especiales ---
   const normalizedName = (player.name || "").toLowerCase().trim();
   const storedGmFlag = localStorage.getItem("dwjc2_gm_flag") === "1";
+
+  // El servidor autoriza las órdenes; el control solo aparece tras validar a Cristal.
+  YouTubeBG.setOwner(false);
+  YouTubeBG.setCommandHandler((command) => {
+    sendWs({ type: "background_music_command", ...command });
+  });
+  YouTubeBG.setEndedHandler(() => {
+    sendWs({ type: "background_music_command", action: "next" });
+  });
 
   // Botón de descargar historial de chat (JSON)
   const downloadChatBtnEl = document.getElementById("download-chat-btn");
@@ -1017,6 +1139,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Éxito: eres GM en este navegador
       localStorage.setItem("dwjc2_gm_flag", "1");
+      if (data.sessionToken) {
+        localStorage.setItem(GM_SESSION_TOKEN_KEY, data.sessionToken);
+        sendWs({ type: "background_music_authorize", gmToken: data.sessionToken });
+      }
       isGM = true;
       gmSettings.gmEnabled = true;
       saveGMSettings();
@@ -3040,6 +3166,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function logout() {
     localStorage.removeItem("dwjc2_player");
     localStorage.removeItem("dwjc2_gm_flag");
+    localStorage.removeItem(GM_SESSION_TOKEN_KEY);
     if (wsState.ws) wsState.ws.close();
     window.location.href = "index.html";
   }

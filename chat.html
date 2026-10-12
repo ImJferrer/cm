@@ -100,19 +100,27 @@
             📥 Descargar Chat (JSON)
           </button>
 
-          <!-- Música de fondo por YouTube (Sylvie · 11/10/2026) -->
-          <div class="yt-music">
+          <!-- Música de fondo compartida de la Sala -->
+          <div class="yt-music" id="yt-music">
             <div class="yt-music-title">Música de fondo</div>
-            <input
-              id="yt-url"
-              class="yt-music-input"
-              type="text"
-              placeholder="Pega un link de YouTube…"
-              autocomplete="off"
-            />
-            <div class="yt-music-row">
-              <button id="yt-play" class="chip chip-soft" type="button">▶ Sonar</button>
-              <button id="yt-stop" class="chip chip-soft" type="button">■ Parar</button>
+            <div id="yt-now-playing" class="yt-music-now-playing">En silencio.</div>
+            <div id="yt-owner-controls" hidden>
+              <input
+                id="yt-url"
+                class="yt-music-input"
+                type="text"
+                placeholder="Pega un link de YouTube…"
+                autocomplete="off"
+              />
+              <div class="yt-music-row">
+                <button id="yt-add" class="chip chip-soft" type="button">＋ Agregar a la lista</button>
+                <button id="yt-play" class="chip chip-soft" type="button">▶ Reproducir lista</button>
+              </div>
+              <div class="yt-music-row">
+                <button id="yt-next" class="chip chip-soft" type="button">⏭ Siguiente</button>
+                <button id="yt-stop" class="chip chip-soft" type="button">■ Parar</button>
+              </div>
+              <div id="yt-playlist" class="yt-music-playlist" aria-live="polite"></div>
             </div>
             <div class="yt-music-row">
               <span class="yt-music-vol-label">Vol</span>

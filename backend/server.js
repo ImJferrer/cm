@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
@@ -33,6 +34,24 @@ app.use(express.json());
 
 const wss = new WebSocketServer({ server, path: "/ws" });
 const wsClients = new Map();
+const gmSessions = new Map();
+const GM_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+function issueGmSession() {
+  const token = crypto.randomBytes(32).toString("hex");
+  gmSessions.set(token, Date.now() + GM_SESSION_TTL_MS);
+  return token;
+}
+
+function isValidGmSession(token) {
+  const expiresAt = gmSessions.get(safeString(token, 128));
+  if (!expiresAt) return false;
+  if (expiresAt < Date.now()) {
+    gmSessions.delete(safeString(token, 128));
+    return false;
+  }
+  return true;
+}
 
 // 🕊 ─── Puente de Sylvie: bitacora viva del salon ──────────────────────
 const crossMoonLog = [];
@@ -129,6 +148,24 @@ function normalizeRosterState(raw = {}) {
   };
 }
 
+function normalizeBackgroundMusic(raw = {}) {
+  const playlist = Array.isArray(raw?.playlist)
+    ? raw.playlist
+        .map((id) => safeString(id, 32).trim())
+        .filter((id) => /^[A-Za-z0-9_-]{11}$/.test(id))
+        .slice(-100)
+    : [];
+  const requestedIndex = Number(raw?.currentIndex);
+  return {
+    playlist,
+    currentIndex: playlist.length
+      ? Math.max(0, Math.min(playlist.length - 1, Number.isInteger(requestedIndex) ? requestedIndex : 0))
+      : 0,
+    playing: Boolean(raw?.playing) && playlist.length > 0,
+    startedAt: Number(raw?.startedAt) || 0,
+  };
+}
+
 function loadChatState() {
   try {
     const raw = fs.readFileSync(CHAT_STATE_FILE, "utf8");
@@ -138,6 +175,7 @@ function loadChatState() {
       return {
         chatVersion,
         roster: normalizeRosterState(parsed?.roster),
+        backgroundMusic: normalizeBackgroundMusic(parsed?.backgroundMusic),
       };
     }
   } catch (_) {}
@@ -145,6 +183,7 @@ function loadChatState() {
   return {
     chatVersion: makeChatVersion(),
     roster: normalizeRosterState(),
+    backgroundMusic: normalizeBackgroundMusic(),
   };
 }
 
@@ -179,6 +218,33 @@ function updateRosterState(raw = {}) {
   broadcast({ type: "roster_state", roster: chatState.roster });
   broadcastPlayerList();
   return chatState.roster;
+}
+
+function updateBackgroundMusic(command = {}) {
+  const music = normalizeBackgroundMusic(chatState.backgroundMusic);
+  const action = safeString(command.action, 20);
+  const videoId = safeString(command.videoId, 32).trim();
+
+  if (action === "add" && /^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    if (music.playlist.length < 100) music.playlist.push(videoId);
+  } else if (action === "play" && music.playlist.length) {
+    music.playing = true;
+    music.startedAt = Date.now();
+  } else if (action === "next" && music.playlist.length) {
+    music.currentIndex = (music.currentIndex + 1) % music.playlist.length;
+    music.playing = true;
+    music.startedAt = Date.now();
+  } else if (action === "stop") {
+    music.playing = false;
+    music.startedAt = 0;
+  } else {
+    return chatState.backgroundMusic;
+  }
+
+  chatState.backgroundMusic = music;
+  saveChatState();
+  broadcast({ type: "background_music_state", backgroundMusic: music });
+  return music;
 }
 
 function buildPlayerList() {
@@ -330,7 +396,7 @@ app.post("/api/sylvie/say", (req, res) => {
 
 wss.on("connection", (ws) => {
   const clientId = makeClientId();
-  const meta = { id: clientId, name: "Viajero", avatar: null, profile: {} };
+  const meta = { id: clientId, name: "Viajero", avatar: null, profile: {}, isCristalAuthorized: false };
   wsClients.set(ws, meta);
 
   ws.send(JSON.stringify({
@@ -338,6 +404,7 @@ wss.on("connection", (ws) => {
     clientId,
     chatVersion: chatState.chatVersion,
     roster: chatState.roster,
+    backgroundMusic: chatState.backgroundMusic,
   }));
 
   ws.on("message", (raw) => {
@@ -350,6 +417,8 @@ wss.on("connection", (ws) => {
 
     if (parsed.type === "hello") {
       meta.name = safeString(parsed.name, 40) || "Viajero";
+      meta.isCristalAuthorized =
+        meta.name.toLowerCase() === "cristal" && isValidGmSession(parsed.gmToken);
       if (parsed.avatar) meta.avatar = parsed.avatar;
       if (parsed.profile && typeof parsed.profile === "object") {
         meta.profile = {
@@ -362,7 +431,15 @@ wss.on("connection", (ws) => {
         };
       }
       broadcast({ type: "presence", event: "join", clientId, name: meta.name, profile: meta.profile });
+      ws.send(JSON.stringify({ type: "background_music_permission", allowed: meta.isCristalAuthorized }));
       broadcastPlayerList();
+      return;
+    }
+
+    if (parsed.type === "background_music_authorize") {
+      meta.isCristalAuthorized =
+        meta.name.toLowerCase() === "cristal" && isValidGmSession(parsed.gmToken);
+      ws.send(JSON.stringify({ type: "background_music_permission", allowed: meta.isCristalAuthorized }));
       return;
     }
 
@@ -374,6 +451,12 @@ wss.on("connection", (ws) => {
     if (parsed.type === "roster_state") {
       if (meta.name.toLowerCase() !== "cristal") return;
       updateRosterState(parsed.roster || {});
+      return;
+    }
+
+    if (parsed.type === "background_music_command") {
+      if (!meta.isCristalAuthorized) return;
+      updateBackgroundMusic(parsed);
       return;
     }
 
@@ -735,7 +818,7 @@ app.post("/api/gm-auth", (req, res) => {
       return res.status(503).json({ error: "Falta configurar GM_PASSWORD en el servidor." });
     }
     if (String(password).trim() === GM_PASSWORD) {
-      return res.json({ ok: true, role: "gm" });
+      return res.json({ ok: true, role: "gm", sessionToken: issueGmSession() });
     }
     return res.status(401).json({ error: "Contrasena incorrecta." });
   }
